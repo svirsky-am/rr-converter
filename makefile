@@ -7,11 +7,12 @@ run-test-of-bin:
 	cargo test -p rr-file-processor
 
 .PHONY: build-and-exec-args-mode
-build-and-exec-args-mode:
+build-and-exec-args-mode: run-test-of-libs
 	cargo build -p rr-file-processor
 	cargo run -p rr-file-processor -- \
-		--input rr-file-processor/tests/test_files/data.json \
-		--output output/formatted/result.json
+		--in-format csv --out-format xml \
+		--input rr-file-processor/tests/test_files/data.csv \
+		--output output/formatted/result.xml
 
 .PHONY: test_stdin_csv_to_xml
 test_stdin_csv_to_xml:
