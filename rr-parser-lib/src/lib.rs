@@ -1,6 +1,7 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Format {
@@ -191,11 +192,83 @@ pub fn read_file(path: &Path) -> Result<String, std::io::Error> {
     fs::read_to_string(path)
 }
 
+
+
+// const  PROJECT_ROOT_DIR  = "../";
+
+// struct TestEnv:
+
+
+
+// let mut path = PathBuf::new();
+
+// path.push(r"C:\");
+// path.push("windows");
+// path.push("system32");
+
+// pub struct TestEnv<'a> {
+//     // vec: Vec<u8>,
+//     project_root_dir: &'a str,
+// } 
+
+
+// // Реализуем блок impl для нашей структуры
+// impl TestEnv {
+//     // Ассоциированная функция-конструктор
+//     // fn new(p1: i32, p2: String) -> TestEnv {
+//     fn new() -> TestEnv {
+//         TestEnv {
+//             project_root_dir: "../",
+//             // поле1: p1,
+//             // поле2: p2,
+//         }
+//     }
+// }
+
+pub struct TestConstants;
+
+impl TestConstants {
+    pub const PROJECT_ROOT_DIR: &'static str = "../";
+    pub const TEST_SAMPLES_SUBDIR: &'static str = "tests/test_files";
+    pub const LOG_FILE: &'static str = "conver.log";
+    pub const TEST_SAMPLE_CSV: &'static str = "example_of_report_bill_1.csv";
+
+    pub fn project_root_dir() -> &'static Path {
+        Path::new(Self::PROJECT_ROOT_DIR)
+    }
+
+    pub fn log_file() -> &'static Path {
+        Path::new(Self::LOG_FILE)
+    }
+
+    pub fn get_test_sample_csv() -> PathBuf {
+        Path::new(Self::PROJECT_ROOT_DIR)
+            .join(Self::TEST_SAMPLES_SUBDIR)
+            .join(Self::TEST_SAMPLE_CSV)
+    }
+
+    // pub fn cache_dir() -> &'static Path {
+    //     // Path::new(Self::CACHE_DIR)
+    //     let base_path = Path::new(Self::PROJECT_ROOT_DIR);
+    //     let result = base_path.join("tests/test_files").join("example_of_report_bill_1.csv").as_path();
+    //     result
+    // }
+
+    // Optional: return as PathBuf if you need owned paths
+    pub fn log_file_buf() -> PathBuf {
+        PathBuf::from(Self::LOG_FILE)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::io::ErrorKind;
-    use std::path::Path;
+    
+    
+    // static PROJECT_ROOT_DIR = ;
+    // static PROJECT_ROOT_DIR = Path::new("../");
+
 
     #[test]
     fn test_read_nonexistent_file() {
@@ -203,5 +276,16 @@ mod tests {
         let result = read_file(fake_path);
         assert!(result.is_err());
         assert_eq!(result.unwrap_err().kind(), ErrorKind::NotFound);
+    }
+
+    #[test]
+    fn test_convert_csv_to_xml() {
+        // let fake_path = Path::new("../tests/test_files/example_of_report_bill_1.csv");
+        // let test_constants = std::cell::RefCell::new(TestConstants);
+        // let test_constants = TestConstants;
+        // let fake_path = Path::new("../tests/test_files/example_of_report_bill_1.csv");
+        let result = read_file(&TestConstants::get_test_sample_csv());
+        assert!(result.is_ok());
+        // assert_eq!(result.unwrap_err().kind(), ErrorKind::NotFound);
     }
 }

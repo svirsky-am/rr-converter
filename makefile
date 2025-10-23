@@ -34,7 +34,15 @@ test_xml_to_csv:
 			--in-format xml --out-format csv \
 			--input  rr-file-processor/tests/test_files/data.xml \
 			--output output/formatted/xml_to_csv
-	
+
+.PHONY: test-csv-to-xml-payload
+test-csv-to-xml-payload:
+	target/debug/rr-file-processor \
+		--in-format csv --out-format xml \
+		--input  tests/test_files/example_of_report_bill_1.csv  \
+		--output output/payload/csv-to-xml
+
+
 .PHONY: clean-run
 test-clean-run: test_stdin_csv_to_xml test_csv_to_xml test_xml_to_csv
 	echo condvert 
