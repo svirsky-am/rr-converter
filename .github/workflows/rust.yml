@@ -1,0 +1,28 @@
+name: Rust
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Build rr-parser-lib
+      run: cargo build -p rr-parser-lib --verbose
+    - name: Build rr-file-processor
+      run: cargo build -p rr-file-processor --verbose
+    - name: Run tests
+      run: cargo test -p rr-parser-lib --verbose
+    - name: Run tests
+      run: cargo test -p rr-file-processor --verbose
+    - name: integarated tests
+      run: make test-clean-run
