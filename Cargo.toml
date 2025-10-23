@@ -1,0 +1,3 @@
+[workspace]
+members = ["rr-parser-lib", "rr-file-processor"]
+resolver = "2"

@@ -1,0 +1,1 @@
+Contant of integration test of 'rr-file-processor'!
