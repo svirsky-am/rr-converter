@@ -1,5 +1,5 @@
 use clap::{Arg, Command};
-use rr_parser_lib::{Format, parse_input, serialize_output};
+use rr_parser_lib::{ParserFormat, parse_input, serialize_output, parse_input_and_serialize_via_trait};
 use std::fs;
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
@@ -7,8 +7,8 @@ use std::path::{Path, PathBuf};
 pub struct Cli {
     pub input: String,
     pub output: String,
-    pub in_format: Format,
-    pub out_format: Format,
+    pub in_format: ParserFormat,
+    pub out_format: ParserFormat,
 }
 
 fn parse_cli() -> Result<Cli, Box<dyn std::error::Error>> {
@@ -50,12 +50,12 @@ fn parse_cli() -> Result<Cli, Box<dyn std::error::Error>> {
     Ok(Cli {
         input: matches.get_one::<String>("input").unwrap().clone(),
         output: matches.get_one::<String>("output").unwrap().clone(),
-        in_format: matches.get_one::<Format>("in-format").unwrap().clone(),
-        out_format: matches.get_one::<Format>("out-format").unwrap().clone(),
+        in_format: matches.get_one::<ParserFormat>("in-format").unwrap().clone(),
+        out_format: matches.get_one::<ParserFormat>("out-format").unwrap().clone(),
     })
 }
 
-fn parse_format_clap(s: &str) -> Result<Format, String> {
+fn parse_format_clap(s: &str) -> Result<ParserFormat, String> {
     s.parse()
 }
 
@@ -69,7 +69,7 @@ fn read_input(source: &str) -> Result<String, Box<dyn std::error::Error>> {
     }
 }
 
-fn get_timestamped_path(original_path: &Path, format: &Format) -> PathBuf {
+fn get_timestamped_path(original_path: &Path, format: &ParserFormat) -> PathBuf {
     let now = time::OffsetDateTime::now_utc();
     let timestamp = now
         .format(&time::format_description::well_known::Iso8601::DEFAULT)
@@ -83,8 +83,8 @@ fn get_timestamped_path(original_path: &Path, format: &Format) -> PathBuf {
         .and_then(|s| s.to_str())
         .unwrap_or("output");
     let ext = match format {
-        Format::Csv => "csv",
-        Format::Xml => "xml",
+        ParserFormat::Csv => "csv",
+        ParserFormat::Xml => "xml",
     };
 
     original_path.with_file_name(format!("{}-{}.{}", stem, timestamp, ext))
@@ -93,7 +93,7 @@ fn get_timestamped_path(original_path: &Path, format: &Format) -> PathBuf {
 fn write_output(
     dest: &str,
     content: &str,
-    out_format: &Format,
+    out_format: &ParserFormat,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if dest == "-" {
         let mut stdout = io::stdout();
@@ -118,6 +118,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let input_content = read_input(&cli.input)?;
     let data = parse_input(&input_content, &cli.in_format)?;
     let output_content = serialize_output(&data, &cli.out_format)?;
-    write_output(&cli.output, &output_content, &cli.out_format)?;
+    // write_output(&cli.output, &output_content, &cli.out_format)?;
+
+    parse_input_and_serialize_via_trait(&input_content, &cli.in_format, &cli.out_format,  &cli.output )?;
     Ok(())
 }

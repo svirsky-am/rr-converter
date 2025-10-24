@@ -2,16 +2,23 @@
 run-test-of-libs:
 	cargo test -p rr-parser-lib
 
+
+.PHONY: run-fix-lint-for-lib
+run-fix-lint-for-lib:
+	cargo fix --lib -p rr-parser-lib
+	cargo fix --lib -p rr-parser-lib --tests
+
 .PHONY: run-test-of-bin
 run-test-of-bin:
 	cargo test -p rr-file-processor
 
 .PHONY: build-and-exec-args-mode
-build-and-exec-args-mode:
+build-and-exec-args-mode: run-test-of-libs
 	cargo build -p rr-file-processor
 	cargo run -p rr-file-processor -- \
-		--input rr-file-processor/tests/test_files/data.json \
-		--output output/formatted/result.json
+		--in-format csv --out-format xml \
+		--input rr-file-processor/tests/test_files/data.csv \
+		--output output/formatted/result.xml
 
 .PHONY: test_stdin_csv_to_xml
 test_stdin_csv_to_xml:
@@ -34,7 +41,15 @@ test_xml_to_csv:
 			--in-format xml --out-format csv \
 			--input  rr-file-processor/tests/test_files/data.xml \
 			--output output/formatted/xml_to_csv
-	
+
+.PHONY: test-csv-to-xml-payload
+test-csv-to-xml-payload:
+	target/debug/rr-file-processor \
+		--in-format csv --out-format xml \
+		--input  tests/test_files/example_of_report_bill_1.csv  \
+		--output output/payload/csv-to-xml
+
+
 .PHONY: clean-run
 test-clean-run: test_stdin_csv_to_xml test_csv_to_xml test_xml_to_csv
 	echo condvert 
