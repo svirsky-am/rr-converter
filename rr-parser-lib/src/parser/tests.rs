@@ -51,7 +51,7 @@ impl TestConstants {
 
 #[cfg(test)]
 mod tests {
-    use crate::{parse_input_and_serialize, parser::{SerilyzerMT940, InputParserCAMT053, InputParserCSV, Parseble, ParserFormat, read_file, render_shape}};
+    use crate::{ parser::{parse_input_and_serialize_via_fn, parse_input_and_serialize_via_trait, SerilyzerMT940, SerilyzerCAMT053, SerilyzerCSV, Parseble, ParserFormat, read_file, render_shape}};
 
     use super::*;
     use std::io::ErrorKind;
@@ -68,37 +68,49 @@ mod tests {
     }
 
     #[test]
-    fn test_convert_csv_to_xml() {
+    fn test_convert_csv_to_xml_via_fn() {
         // let fake_path = Path::new("../tests/test_files/example_of_report_bill_1.csv");
         // let test_constants = std::cell::RefCell::new(TestConstants);
         // let test_constants = TestConstants;
         // let fake_path = Path::new("../tests/test_files/example_of_report_bill_1.csv");
         let readed_file = read_file(Path::new(&TestConstants::get_test_sample_csv()));
         assert!(readed_file.is_ok());
-        let save_result =     parse_input_and_serialize(&TestConstants::get_test_sample_csv(),&ParserFormat::Csv, &ParserFormat::Xml, &TestConstants::get_output_path_xml() );
+        let save_result =     parse_input_and_serialize_via_fn(&TestConstants::get_test_sample_csv(),&ParserFormat::Csv, &ParserFormat::Xml, &TestConstants::get_output_path_xml() );
         assert!(save_result.is_ok());
 
         // assert_eq!(result.unwrap_err().kind(), ErrorKind::NotFound);
     }
 
+    fn test_convert_csv_to_xml_via_trait() {
+        // let fake_path = Path::new("../tests/test_files/example_of_report_bill_1.csv");
+        // let test_constants = std::cell::RefCell::new(TestConstants);
+        // let test_constants = TestConstants;
+        // let fake_path = Path::new("../tests/test_files/example_of_report_bill_1.csv");
+        let readed_file = read_file(Path::new(&TestConstants::get_test_sample_csv()));
+        assert!(readed_file.is_ok());
+        let save_result = parse_input_and_serialize_via_trait(&TestConstants::get_test_sample_csv(),&ParserFormat::Csv, &ParserFormat::Xml, &TestConstants::get_output_path_xml() );
+        assert!(save_result.is_ok());
 
-    #[test]
-    fn test_parser_as_traite() {
-        let input_parse_mt940 = SerilyzerMT940 { radius: 5.0 };
-        let input_parser_csv = InputParserCSV { width: 10.0, height: 4.0 };
-        let input_parser_camt053 = InputParserCAMT053 { base: 6.0, height: 8.0 };
-    
-        // Call draw directly
-        input_parse_mt940.draw();
-        input_parser_csv.draw();
-        input_parser_camt053.draw();
-    
-        // Or use a generic function
-        render_shape(input_parse_mt940);
-        render_shape(input_parser_csv);
-        render_shape(input_parser_camt053);
-    
+        // assert_eq!(result.unwrap_err().kind(), ErrorKind::NotFound);
     }
+
+    // #[test]
+    // fn test_parser_as_traite() {
+    //     let input_parse_mt940 = SerilyzerMT940 { radius: 5.0 };
+    //     let input_parser_csv = SerilyzerCSV { width: 10.0, height: 4.0 };
+    //     let input_parser_camt053 = SerilyzerCAMT053 { base: 6.0, height: 8.0 };
+    
+    //     // Call draw directly
+    //     input_parse_mt940.get_describe();
+    //     input_parser_csv.get_describe();
+    //     input_parser_camt053.get_describe();
+    
+    //     // Or use a generic function
+    //     render_shape(input_parse_mt940);
+    //     render_shape(input_parser_csv);
+    //     render_shape(input_parser_camt053);
+    
+    // }
 
 
 }

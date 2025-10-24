@@ -1,5 +1,5 @@
 use clap::{Arg, Command};
-use rr_parser_lib::{ParserFormat, parse_input, serialize_output, parse_input_and_serialize};
+use rr_parser_lib::{ParserFormat, parse_input, serialize_output, parse_input_and_serialize_via_trait};
 use std::fs;
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
@@ -120,6 +120,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let output_content = serialize_output(&data, &cli.out_format)?;
     // write_output(&cli.output, &output_content, &cli.out_format)?;
 
-    parse_input_and_serialize(&input_content, &cli.in_format, &cli.out_format,  &cli.output )?;
+    parse_input_and_serialize_via_trait(&input_content, &cli.in_format, &cli.out_format,  &cli.output )?;
     Ok(())
 }

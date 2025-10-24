@@ -5,6 +5,10 @@ use std::path::{Path, PathBuf};
 // use std::io;
 use std::io::{self, Read, Write};
 
+
+use std::fmt;
+
+
 use serde::Serialize;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -24,6 +28,18 @@ impl std::str::FromStr for ParserFormat {
         }
     }
 }
+
+impl fmt::Display for ParserFormat {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            ParserFormat::Csv => write!(f, "ParserFormat: Csv"),
+            ParserFormat::Xml => write!(f, "ParserFormat: Xml"),
+            // ParserFormat::Pending => write!(f, "Action is pending approval"),
+            // ParserFormat::Error(msg) => write!(f, "An error occurred: {}", msg),
+        }
+    }
+}
+
 
 #[derive(Debug, Clone)]
 pub struct Data {
@@ -200,6 +216,9 @@ pub fn read_file(path: &Path) -> Result<String, std::io::Error> {
 
 // Define the trait
 trait Parseble {
+    // fn new(input: &str, input_format: &ParserFormat ) -> Self {
+
+    // }
     // &str data;
     // fn name(&self) -> &str;
     // fn data(&self) -> &str;
@@ -208,7 +227,56 @@ trait Parseble {
         // println!("Drawing a shape with area: {:.2}", self.area());
         "Drawing a shape with area:".to_string()
     }
-    fn draw(&self);
+    fn get_describe(&self);
+
+    // fn serialize_self(&self) -> String ;
+
+    fn gen_output(&self) {
+        // let data   = match input_format {
+        //     ParserFormat::Csv => parse_csv(input),
+        //     ParserFormat::Xml => parse_xml(input),
+        // };
+        let path = "242";
+        // data.expect("REASON")
+    }
+
+    fn parse_input(&self, input: &str, input_format: &ParserFormat) -> Data{
+        let data   = match input_format {
+            ParserFormat::Csv => parse_csv(input),
+            ParserFormat::Xml => parse_xml(input),
+        };
+        data.expect("REASON")
+    }
+
+    fn serialize(&self, data: &Data) -> String {
+        let mut output = String::from("<records_bit>\n");
+        output
+    }
+
+    fn serialize_self(&self) -> String {
+        let mut output =  "Drawing a SerilyzerCSV".to_string();
+        output
+    }
+  
+}
+
+struct UniParser {
+    radius: f64,
+}
+
+impl Parseble for UniParser {
+    fn get_describe(&self) {
+        println!("Drawing a SerilyzerMT940 with radius {}", self.radius);
+    }
+    fn parse_input(&self, input: &str, input_format: &ParserFormat) -> Data{
+        let data   = match input_format {
+            ParserFormat::Csv => parse_csv(input),
+            ParserFormat::Xml => parse_xml(input),
+        };
+        data.expect("REASON")
+    }
+
+
 }
 
 // Define three structs
@@ -216,19 +284,59 @@ struct SerilyzerMT940 {
     radius: f64,
 }
 
-struct InputParserCSV {
-    width: f64,
-    height: f64,
+struct SerilyzerCSV {
+    input_string: String,
+    input_parser_type: ParserFormat,
 }
 
-struct InputParserCAMT053 {
+
+impl Parseble for SerilyzerCSV {
+    fn get_describe(&self) {
+        println!("Drawing a SerilyzerCSV: {} ", self.input_string);
+    }
+    fn serialize(&self, data: &Data) -> String {
+
+
+        serialize_csv(&data)
+    }
+    fn serialize_self(&self) -> String {
+        let data = parse_input(&self.input_string, &self.input_parser_type);
+        // serialize_csv(data)
+        "Drawing a SerilyzerCSV".to_string()
+    }
+}
+
+struct SerilyzerXml {
+    input_string: String,
+    input_parser_type: ParserFormat,
+
+    // fn new(&self) {}
+    // height: f64,
+}
+
+
+impl Parseble for SerilyzerXml {
+    fn get_describe(&self) {
+        // println!("Drawing a SerilyzerCSV: {}", self.input_string);
+        println!("Drawing a SerilyzerCSV: {}", self.input_string);
+    }
+    fn serialize(&self, data: &Data) -> String {
+        serialize_xml(&data)
+    }
+    // fn serialize(&self, data: &Data) -> String {
+    //     serialize_xml(&data)
+    // }
+}
+
+
+struct SerilyzerCAMT053 {
     base: f64,
     height: f64,
 }
 
 // Implement the trait for each struct
 impl Parseble for SerilyzerMT940 {
-    fn draw(&self) {
+    fn get_describe(&self) {
         println!("Drawing a SerilyzerMT940 with radius {}", self.radius);
     }
        
@@ -238,31 +346,29 @@ impl Parseble for SerilyzerMT940 {
 }
 
 
-use std::fmt;
 
-impl fmt::Display for SerilyzerMT940 {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        // Write the formatted string to the provided buffer `f`
-        write!(f, "User {{ name: \"{}\" }}", self.data())
+
+impl Parseble for SerilyzerCAMT053 {
+    fn get_describe(&self) {
+        println!("Drawing a SerilyzerCAMT053 with base {} and height {}", self.base, self.height);
     }
-}
 
-impl Parseble for InputParserCSV {
-    fn draw(&self) {
-        println!("Drawing a InputParserCAMT053: {} x {}", self.width, self.height);
-    }
-}
-
-impl Parseble for InputParserCAMT053 {
-    fn draw(&self) {
-        println!("Drawing a InputParserCAMT053 with base {} and height {}", self.base, self.height);
+    fn gen_output(&self) {
+        println!("Drawing a SerilyzerCAMT053 with base {} and height {}", self.base, self.height);
     }
 }
 
 // Optional: a function that accepts any type implementing Parseble
 fn render_shape<T: Parseble>(shape: T) {
-    shape.draw();
+    shape.get_describe();
 }
+
+
+// Optional: a function that accepts any type implementing Parseble
+fn generate_output<T: Parseble>(serializer: T) {
+    serializer.gen_output();
+}
+
 
 // use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -311,21 +417,31 @@ fn write_output (
     Ok(())
 }
 
-// ===== MAIN CONVERTER =====
-pub fn parse_input_and_serialize(input: &str, input_format: &ParserFormat, output_format: &ParserFormat, output: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let data   = match input_format {
-        ParserFormat::Csv => parse_csv(input),
-        ParserFormat::Xml => parse_xml(input),
-    }?;
-    // Result<Data, Box<dyn std::error::Error>>
 
-    // let data: &Data;
-//     data: &Data,
-//     format: &ParserFormat,
-// ) -> Result<String, Box<dyn std::error::Error>> {
+pub fn parse_input_and_serialize_via_fn(input: &str, input_format: &ParserFormat, output_format: &ParserFormat, output: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let data = parse_input(input, input_format)?;
     let output_content = match output_format {
-        ParserFormat::Csv => serialize_csv(&data),
+        ParserFormat::Csv => serialize_csv(&data), 
         ParserFormat::Xml => serialize_xml(&data),
+    };
+
+    // let output_content = serialized_result;
+    let _ = write_output(&output, &output_content, output_format);
+    Ok(())
+}
+
+
+// ===== MAIN CONVERTER =====
+pub fn parse_input_and_serialize_via_trait(input: &str, input_format: &ParserFormat, output_format: &ParserFormat, output: &str) -> Result<(), Box<dyn std::error::Error>> {
+    // let data = UniParser{radius: 5.0}.parse_input(input, input_format);
+    
+    // let output_content = serialize_xml(&data);
+
+    let output_content = match output_format {
+        ParserFormat::Csv => SerilyzerCSV{input_string: input.to_owned(), input_parser_type: input_format.to_owned()}.serialize_self(),
+        // serialize_xml(&data), generate_output(as);
+        // serialize_csv(&data),
+        ParserFormat::Xml => SerilyzerXml{input_string: input.to_owned(), input_parser_type: input_format.to_owned()}.serialize_self(),
     };
 
     // let output_content = serialized_result;

@@ -2,6 +2,12 @@
 run-test-of-libs:
 	cargo test -p rr-parser-lib
 
+
+.PHONY: run-fix-lint-for-lib
+run-fix-lint-for-lib:
+	cargo fix --lib -p rr-parser-lib
+	cargo fix --lib -p rr-parser-lib --tests
+
 .PHONY: run-test-of-bin
 run-test-of-bin:
 	cargo test -p rr-file-processor
