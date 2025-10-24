@@ -51,7 +51,7 @@ impl TestConstants {
 
 #[cfg(test)]
 mod tests {
-    use crate::{ parser::{parse_input_and_serialize_via_fn, parse_input_and_serialize_via_trait, SerilyzerMT940, SerilyzerCAMT053, SerilyzerCSV, Parseble, ParserFormat, read_file, render_shape}};
+    use crate::{ parser::{parse_input_and_serialize_via_fn, parse_input_and_serialize_via_trait, UniParser, ParserFormat, read_file, render_shape}};
 
     use super::*;
     use std::io::ErrorKind;
