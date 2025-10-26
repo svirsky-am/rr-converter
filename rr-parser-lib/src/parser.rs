@@ -1,550 +1,569 @@
 use std::cell::RefCell;
-use std::collections::HashMap;
+
 use std::fs;
 use std::path::{Path, PathBuf};
 // use std::io;
-use std::io::{self, Read, Write};
+use std::io::{self, Read, Write, Result};
 
 
 use std::fmt;
 
 
-use serde::Serialize;
+use std::collections::{HashMap, HashSet};
+use std::fs::File;
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum ParserFormat {
-    Csv,
-    Xml,
-    Camt053,
-    Mt940
-}
+use std::rc::Rc;
 
-impl std::str::FromStr for ParserFormat {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_str() {
-            "csv" => Ok(ParserFormat::Csv),
-            "xml" => Ok(ParserFormat::Xml),
-            "camt053" => Ok(ParserFormat::Camt053),
-            "mt940" => Ok(ParserFormat::Mt940),
-            _ => Err(format!("Unsupported format: {}. Supported: csv, xml, camt053, mt940", s)),
-        }
-    }
-}
-
-impl fmt::Display for ParserFormat {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            ParserFormat::Csv => write!(f, "ParserFormat: Csv"),
-            ParserFormat::Xml => write!(f, "ParserFormat: Xml"),
-            ParserFormat::Camt053 => write!(f, "ParserFormat: camt053"),
-            ParserFormat::Mt940 => write!(f, "ParserFormat: mt940"),
-            // ParserFormat::Pending => write!(f, "Action is pending approval"),
-            // ParserFormat::Error(msg) => write!(f, "An error occurred: {}", msg),
-        }
-    }
-}
-
-
-#[derive(Debug, Clone)]
-pub struct Data {
-    // Simple table: list of rows, each row is a map of field -> value
-    pub headers: Vec<String>,
-    pub rows: Vec<HashMap<String, String>>,
-}
-
-impl Data {
-    pub fn new(headers: Vec<String>, rows: Vec<HashMap<String, String>>) -> Self {
-        Self { headers, rows }
-    }
-}
-
-// ===== CSV PARSING (simple, no quotes/escaping) =====
-pub fn parse_csv(input: &str) -> Result<Data, Box<dyn std::error::Error>> {
-    let mut lines = input.lines();
-    let header_line = lines.next().ok_or("CSV is empty")?;
-    let headers: Vec<String> = header_line
-        .split(',')
-        .map(|s| s.trim().to_string())
-        .collect();
-
-    let mut rows = Vec::new();
-    for line in lines {
-        if line.trim().is_empty() {
-            continue;
-        }
-        let values: Vec<&str> = line.split(',').collect();
-        if values.len() != headers.len() {
-            return Err(format!(
-                "Row has {} fields, expected {}",
-                values.len(),
-                headers.len()
-            )
-            .into());
-        }
-        let mut row = HashMap::new();
-        for (i, &val) in values.iter().enumerate() {
-            row.insert(headers[i].clone(), val.trim().to_string());
-        }
-        rows.push(row);
-    }
-    Ok(Data::new(headers, rows))
-}
-
-// ===== XML PARSING (very basic, assumes flat structure) =====
-pub fn parse_xml(input: &str) -> Result<Data, Box<dyn std::error::Error>> {
-    use std::io::BufRead;
-
-    let reader = std::io::BufReader::new(input.as_bytes());
-    let mut headers = Vec::new();
-    let mut rows = Vec::new();
-    let mut current_row = HashMap::new();
-    let mut in_record = false;
-
-    for line in reader.lines() {
-        let line = line?;
-        let trimmed = line.trim();
-
-        if trimmed.starts_with("<record") && trimmed.ends_with('>') {
-            in_record = true;
-            current_row.clear();
-        } else if trimmed == "</record>" {
-            in_record = false;
-            if !current_row.is_empty() {
-                // Infer headers from first row
-                if headers.is_empty() {
-                    headers = current_row.keys().cloned().collect();
-                }
-                rows.push(current_row.clone());
-            }
-        } else if in_record
-            && trimmed.starts_with('<')
-            && trimmed.ends_with('>')
-            && !trimmed.starts_with("</")
-        {
-            // Extract tag and content: <name>Alice</name>
-            let tag_start = trimmed.find('<').unwrap() + 1;
-            let tag_end = trimmed[tag_start..].find('>').unwrap_or(0) + tag_start;
-            let tag = &trimmed[tag_start..tag_end];
-
-            let content_start = tag_end + 1;
-            let content_end = trimmed[content_start..]
-                .find('<')
-                .unwrap_or(trimmed.len() - content_start)
-                + content_start;
-            let content = &trimmed[content_start..content_end];
-
-            current_row.insert(tag.to_string(), content.to_string());
-        }
-    }
-
-    if headers.is_empty() && !rows.is_empty() {
-        headers = rows[0].keys().cloned().collect();
-    }
-
-    Ok(Data::new(headers, rows))
-}
-
-
-// ===== CAMT053 PARSING (very basic, assumes flat structure) =====
-pub fn parse_camt053(input: &str) -> Result<Data, Box<dyn std::error::Error>> {
-    let mut lines = input.lines();
-    let header_line = lines.next().ok_or("CSV is empty")?;
-    let headers: Vec<String> = header_line
-        .split(',')
-        .map(|s| s.trim().to_string())
-        .collect();
-
-    let mut rows = Vec::new();
-    for line in lines {
-        if line.trim().is_empty() {
-            continue;
-        }
-        let values: Vec<&str> = line.split(',').collect();
-        if values.len() != headers.len() {
-            return Err(format!(
-                "Row has {} fields, expected {}",
-                values.len(),
-                headers.len()
-            )
-            .into());
-        }
-        let mut row = HashMap::new();
-        for (i, &val) in values.iter().enumerate() {
-            row.insert(headers[i].clone(), val.trim().to_string());
-        }
-        rows.push(row);
-    }
-    Ok(Data::new(headers, rows))
-}
-
-
-// ===== CAMT053 PARSING (very basic, assumes flat structure) =====
-pub fn parse_mt940(input: &str) -> Result<Data, Box<dyn std::error::Error>> {
-    let mut lines = input.lines();
-    let header_line = lines.next().ok_or("CSV is empty")?;
-    let headers: Vec<String> = header_line
-        .split(',')
-        .map(|s| s.trim().to_string())
-        .collect();
-
-    let mut rows = Vec::new();
-    for line in lines {
-        if line.trim().is_empty() {
-            continue;
-        }
-        let values: Vec<&str> = line.split(',').collect();
-        if values.len() != headers.len() {
-            return Err(format!(
-                "Row has {} fields, expected {}",
-                values.len(),
-                headers.len()
-            )
-            .into());
-        }
-        let mut row = HashMap::new();
-        for (i, &val) in values.iter().enumerate() {
-            row.insert(headers[i].clone(), val.trim().to_string());
-        }
-        rows.push(row);
-    }
-    Ok(Data::new(headers, rows))
-}
-
-
-
-
-// ===== CSV SERIALIZATION =====
-pub fn serialize_csv(data: &Data) -> String {
-    if data.headers.is_empty() {
-        return String::new();
-    }
-
-    let mut output = String::new();
-    output.push_str(&data.headers.join(","));
-    output.push('\n');
-
-    for row in &data.rows {
-        let values: Vec<String> = data
-            .headers
-            .iter()
-            .map(|h| row.get(h).cloned().unwrap_or_default())
-            .collect();
-        output.push_str(&values.join(","));
-        output.push('\n');
-    }
-    output
-}
-
-// ===== XML SERIALIZATION =====
-pub fn serialize_xml(data: &Data) -> String {
-    let mut output = String::from("<records>\n");
-    for row in &data.rows {
-        output.push_str("  <record>\n");
-        for header in &data.headers {
-            let value = row.get(header).cloned().unwrap_or_default();
-            output.push_str(&format!(
-                "    <{}>{}</{}>\n",
-                header,
-                escape_xml(&value),
-                header
-            ));
-        }
-        output.push_str("  </record>\n");
-    }
-    output.push_str("</records>\n");
-    output
-}
-
-// ===== CAMT053 SERIALIZATION =====
-pub fn serialize_camt053(data: &Data) -> String {
-    let mut output = String::from("<records>\n");
-    for row in &data.rows {
-        output.push_str("  <record>\n");
-        for header in &data.headers {
-            let value = row.get(header).cloned().unwrap_or_default();
-            output.push_str(&format!(
-                "    <{}>{}</{}>\n",
-                header,
-                escape_xml(&value),
-                header
-            ));
-        }
-        output.push_str("  </record>\n");
-    }
-    output.push_str("</records>\n");
-    output
-}
-
-// ===== MT940 SERIALIZATION =====
-pub fn serialize_mt940(data: &Data) -> String {
-    let mut output = String::from("<records>\n");
-    for row in &data.rows {
-        output.push_str("  <record>\n");
-        for header in &data.headers {
-            let value = row.get(header).cloned().unwrap_or_default();
-            output.push_str(&format!(
-                "    <{}>{}</{}>\n",
-                header,
-                escape_xml(&value),
-                header
-            ));
-        }
-        output.push_str("  </record>\n");
-    }
-    output.push_str("</records>\n");
-    output
-}
-
-
-fn escape_xml(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "<")
-        .replace('>', ">")
-        .replace('"', "&quot;")
-        .replace('\'', "&apos;")
-}
-
-// ===== MAIN CONVERTER =====
-pub fn parse_input(input: &str, format: &ParserFormat) -> Result<Data, Box<dyn std::error::Error>> {
-    match format {
-        ParserFormat::Csv => parse_csv(input),
-        ParserFormat::Xml => parse_xml(input),
-        ParserFormat::Camt053 => parse_camt053(input),
-        ParserFormat::Mt940 => parse_mt940(input),
-    }
-}
-
-pub fn serialize_output(
-    data: &Data,
-    format: &ParserFormat,
-) -> Result<String, Box<dyn std::error::Error>> {
-    Ok(match format {
-        ParserFormat::Csv => serialize_csv(data),
-        ParserFormat::Xml => serialize_xml(data),
-        ParserFormat::Camt053 => serialize_camt053(data),
-        ParserFormat::Mt940 => serialize_mt940(data),
-    })
-}
-
-pub fn read_file(path: &Path) -> Result<String, std::io::Error> {
-    fs::read_to_string(path)
-}
-
-
-
-// Define the trait
-trait Parseble {
-    // fn new(input: &str, input_format: &ParserFormat ) -> Self {
-
-    // }
-    // &str data;
-    // fn name(&self) -> &str;
-    // fn data(&self) -> &str;
-    // fn area(&self) -> f64;
-    fn data(&self) -> String {
-        // println!("Drawing a shape with area: {:.2}", self.area());
-        "Drawing a shape with area:".to_string()
-    }
-    fn get_describe(&self);
-
-    // // fn serialize_self(&self) -> String ;
-
-    // fn gen_output(&self) {
-    //     // let data   = match input_format {
-    //     //     ParserFormat::Csv => parse_csv(input),
-    //     //     ParserFormat::Xml => parse_xml(input),
-    //     // };
-    //     let path = "242";
-    //     // data.expect("REASON")
-    // }
-
-    fn parse_input(&self, input: &str, input_format: &ParserFormat) -> Data{
-        let data = parse_input(input, input_format);
-        data.expect("REASON")
-    }
-
-    // fn serialize(&self, data: &Data) -> String {
-    //     let mut output = String::from("<records_bit>\n");
-    //     output
-    // }
-
-    // fn serialize_self(&self) -> String {
-    //     let mut output =  "Drawing a SerilyzerCSV".to_string();
-    //     output
-    // }
-  
-}
-
+// In-memory parsed CSV
+#[derive(Debug, Default)]
 struct UniParser {
-    input_string: String,
-    input_parser_type: ParserFormat,
-    aggregated_data: Data
+    headers: Vec<String>,
+    rows: Vec<Vec<String>>,
+}
+
+#[derive(Hash, PartialEq, Eq, Debug)]
+struct Transaction {
+    country: &'static str,
+    id: u32,
+}
+
+#[derive(Hash, PartialEq, Eq, Debug)]
+struct AccountInto {
+    description: String,
+    id: u32,
+    transactions: Vec<Transaction>,
+    currency: String,
+}
+
+impl Default for AccountInto {
+    fn default() -> Self {
+        AccountInto {
+            id: 5,
+            description: String::new(),
+            transactions: Vec::new(),
+            currency: String::new(),
+        }
+    }
+}
+
+impl AccountInto {
+    pub fn new(id: u32, description: String) -> Self {
+        Self {
+            id: id,
+            description: description,
+            ..Default::default()
+        }
+    }
+
+    fn render_content_as_csv(&mut self) -> Vec<u8> {
+        let mut result_content = String::from("---\n");
+
+        result_content.push_str(&format!("account_info: {:#?}\n", self));
+        // let mut result_content: Vec<u8> = format!("result_content: {}\n", self)
+        // ;
+        result_content.as_bytes().to_vec()
+    }
+
+    fn render_content_as_csv_extra_fin(&mut self) -> Vec<u8> {
+        let mut result_content = String::from("---\n");
+
+        result_content.push_str(&format!("account_info: {:#?}\n", self));
+        // let mut result_content: Vec<u8> = format!("result_content: {}\n", self)
+        // ;
+        result_content.as_bytes().to_vec()
+    }
+
+    fn render_content_as_yaml(&mut self) -> Vec<u8> {
+        let mut result_content = String::from("---\n");
+
+        result_content.push_str(&format!("account_info: {:#?}\n", self));
+        // let mut result_content: Vec<u8> = format!("result_content: {}\n", self)
+        // ;
+        result_content.as_bytes().to_vec()
+    }
+
+    fn render_content_as_camt053(&mut self) -> Vec<u8> {
+        let mut result_content = String::from("---\n");
+
+        result_content.push_str(&format!("account_info: {:#?}\n", self));
+        // let mut result_content: Vec<u8> = format!("result_content: {}\n", self)
+        // ;
+        result_content.as_bytes().to_vec()
+    }
+
+    fn render_content_as_mt940(&mut self) -> Vec<u8> {
+        let mut result_content = String::from("---\n");
+
+        result_content.push_str(&format!("account_info: {:#?}\n", self));
+        // let mut result_content: Vec<u8> = format!("result_content: {}\n", self)
+        // ;
+        result_content.as_bytes().to_vec()
+    }
+}
+#[derive(Debug)]
+struct XmlNode {
+    tag_name: String,
+    value: String,
+    parent: Option<Rc<RefCell<XmlNode>>>,
+}
+
+fn find_xml_xml_tag_with_value_in_line(trimed_line: &str) -> Option<Rc<RefCell<XmlNode>>> {
+    let tag_start = trimed_line.find('<').unwrap() + 1;
+    let tag_end = trimed_line[tag_start..].find('>').unwrap_or(0) + tag_start;
+    let tag = &trimed_line[tag_start..tag_end];
+    let content_start = tag_end + 1;
+    let content_end = trimed_line[content_start..]
+        .find('<')
+        .unwrap_or(trimed_line.len() - content_start)
+        + content_start;
+    let content: &str = &trimed_line[content_start..content_end];
+    let result_node: Rc<RefCell<XmlNode>> = Rc::new(RefCell::new(XmlNode {
+        tag_name: tag.to_owned(),
+        value: content.to_owned(),
+        parent: None,
+    }));
+    if content.len() != 0 {
+        return Some(result_node);
+    } else {
+        None
+    }
+}
+
+fn find_open_tag(trimed_line: &str) -> Option<Rc<RefCell<XmlNode>>> {
+    let tag_start = trimed_line.find('<').unwrap() + 1;
+    let tag_end = trimed_line[tag_start..].find('>').unwrap_or(0) + tag_start;
+    let tag = &trimed_line[tag_start..tag_end];
+    let content_start = tag_end + 1;
+    let content_end = trimed_line[content_start..]
+        .find('<')
+        .unwrap_or(trimed_line.len() - content_start)
+        + content_start;
+    let content: &str = &trimed_line[content_start..content_end];
+    let result_node: Rc<RefCell<XmlNode>> = Rc::new(RefCell::new(XmlNode {
+        tag_name: tag.to_owned(),
+        value: content.to_owned(),
+        parent: None,
+    }));
+    if content.len() != 0 {
+        return Some(result_node);
+    } else {
+        None
+    }
+}
+
+fn find_xml_tag_with_value_in_line(
+    trimed_line: &str,
+    parent_node: &Rc<RefCell<XmlNode>>,
+) -> Option<Rc<RefCell<XmlNode>>> {
+    let tag_start = trimed_line.find('<').unwrap() + 1;
+    let tag_end = trimed_line[tag_start..].find('>').unwrap_or(0) + tag_start;
+    let tag = &trimed_line[tag_start..tag_end];
+    let content_start = tag_end + 1;
+    let content_end = trimed_line[content_start..]
+        .find('<')
+        .unwrap_or(trimed_line.len() - content_start)
+        + content_start;
+    let content: &str = &trimed_line[content_start..content_end];
+    let result_node: Rc<RefCell<XmlNode>> = Rc::new(RefCell::new(XmlNode {
+        tag_name: tag.to_owned(),
+        value: content.to_owned(),
+        parent: Some(Rc::clone(parent_node)),
+    }));
+    if content.len() != 0 {
+        return Some(result_node);
+    } else {
+        None
+    }
 }
 
 impl UniParser {
+    fn parse_csv_from_str(&mut self, input: &str) -> AccountInto {
+        let mut lines = input.lines();
+        if let Some(header) = lines.next() {
+            self.headers = header.split(',').map(|s| s.trim().to_string()).collect();
+        }
 
-    
-    fn new(input_string: String, input_parser_type: ParserFormat) -> Self {
-        let data = parse_input(&input_string, &input_parser_type).expect("");
-        UniParser {
-            input_string: input_string,
-            input_parser_type: input_parser_type,
-            // data,
-            aggregated_data: data
-            
-            
+        let mut data_transactions: Vec<Transaction> = Vec::new();
+        let account_data = AccountInto::new(5, "csv from str".to_owned());
+
+        for line in lines {
+            let line = line.trim();
+            if !line.is_empty() {
+                let _split_string = &line.split(',').map(|s| s.trim().to_string());
+                self.rows
+                    .push(line.split(',').map(|s| s.trim().to_string()).collect());
+
+                // data_transactions.append(other);
+
+                data_transactions.push(Transaction {
+                    country: "ru",
+                    id: 1,
+                });
+            }
+        }
+
+        // dbg!(&data_transactions);
+        account_data
+    }
+
+    fn parse_csv_extra_fin_from_str(&mut self, input: &str) -> AccountInto {
+        let mut lines = input.lines();
+        if let Some(header) = lines.next() {
+            self.headers = header.split(',').map(|s| s.trim().to_string()).collect();
+        }
+
+        let mut data_transactions: Vec<Transaction> = Vec::new();
+        let account_data = AccountInto::new(7, "csv from str".to_owned());
+
+        for line in lines {
+            let line = line.trim();
+            if !line.is_empty() {
+                let _split_string = &line.split(',').map(|s| s.trim().to_string());
+                self.rows
+                    .push(line.split(',').map(|s| s.trim().to_string()).collect());
+
+                // data_transactions.append(other);
+
+                data_transactions.push(Transaction {
+                    country: "ru",
+                    id: 1,
+                });
+            }
+        }
+
+        // dbg!(&data_transactions);
+        account_data
+    }
+
+    fn parse_camt053_from_str(&mut self, input: &str) -> AccountInto {
+        let mut lines = input.lines();
+        let mut data_transactions: Vec<Transaction> = Vec::new();
+        let account_data = AccountInto::new(3, "camt053 from str".to_owned());
+        let mut opened_xml_nodes: Vec<XmlNode> = Vec::new();
+        // let mut current_row = HashMap::new();
+        let mut to_find_account_id = false;
+
+        let mut cur_open_node = XmlNode {
+            tag_name: todo!(),
+            value: todo!(),
+            parent: None,
+        };
+
+        for line in lines {
+            let line = line.trim();
+            if !line.is_empty() {
+                let trimmed = line.trim();
+
+                if trimmed.starts_with("<Stmt") && trimmed.ends_with('>') {
+                    to_find_account_id = true;
+                    // current_row.clear();
+                } else if trimmed == "</Stmt>" {
+                    to_find_account_id = false
+                }
+
+                match find_xml_tag_with_value_in_line(
+                    &trimmed,
+                    &Rc::new(RefCell::new(cur_open_node)),
+                ) {
+                    Some((xml_node)) => {
+                        println!(
+                            "Нашли елемент: {} {}",
+                            &xml_node.borrow().tag_name,
+                            &xml_node.borrow().value
+                        )
+                    }
+                    None => println!("Ничего не нашли"),
+                }
+
+                // if in_record == true {
+
+                // }
+
+                // in_record = false;
+                // if !current_row.is_empty() {
+                //     // Infer headers from first row
+                //     if headers.is_empty() {
+                //         headers = current_row.keys().cloned().collect();
+                //     }
+                //     rows.push(current_row.clone());
+                //     }
+                // } else if in_record
+                //     && trimmed.starts_with('<')
+                //     && trimmed.ends_with('>')
+                //     && !trimmed.starts_with("</")
+                // {
+                //     // Extract tag and content: <name>Alice</name>
+                //     let tag_start = trimmed.find('<').unwrap() + 1;
+                //     let tag_end = trimmed[tag_start..].find('>').unwrap_or(0) + tag_start;
+                //     let tag = &trimmed[tag_start..tag_end];
+
+                //     let content_start = tag_end + 1;
+                //     let content_end = trimmed[content_start..]
+                //         .find('<')
+                //         .unwrap_or(trimmed.len() - content_start)
+                //         + content_start;
+                //     let content = &trimmed[content_start..content_end];
+
+                //     current_row.insert(tag.to_string(), content.to_string());
+                // }
+            }
+        }
+
+        // dbg!(&data_transactions);
+        account_data
+    }
+
+    fn parse_mt940_from_str(&mut self, input: &str) -> AccountInto {
+        let mut lines = input.lines();
+
+        if let Some(header) = lines.next() {
+            self.headers = header.split(',').map(|s| s.trim().to_string()).collect();
+        }
+
+        let account_data = AccountInto::new(6, "csv from str".to_owned());
+        // if let Some(header) = lines.next() {
+        //     self.headers = header.split(',').map(|s| s.trim().to_string()).collect();
+        // }
+
+        // let mut data_transactions: Vec<Transaction> = Vec::new();
+        // let account_data = AccountInto::new(6, "csv from str".to_owned());
+
+        // for line in lines {
+        //     let line = line.trim();
+        //     if !line.is_empty() {
+        //         let _split_string = &line.split(',').map(|s| s.trim().to_string());
+        //         self.rows
+        //             .push(line.split(',').map(|s| s.trim().to_string()).collect());
+
+        //         // data_transactions.append(other);
+
+        //         data_transactions.push(Transaction {
+        //             country: "ru",
+        //             id: 1,
+        //         });
+        //     }
+        // }
+
+        // dbg!(&data_transactions);
+        account_data
+    }
+
+    fn to_yaml_bytes(&self) -> Vec<u8> {
+        if self.headers.is_empty() {
+            return Vec::new();
+        }
+
+        let mut yaml = String::from("---\n");
+        for row in &self.rows {
+            yaml.push_str("-\n");
+            for (i, value) in row.iter().enumerate() {
+                if i < self.headers.len() {
+                    let key = &self.headers[i];
+                    let display = if value.chars().all(|c| c.is_ascii_digit())
+                        || value.contains([' ', ':', '{', '}', '[', ']', ',', '"'])
+                    {
+                        format!("\"{}\"", value)
+                    } else {
+                        value.clone()
+                    };
+                    yaml.push_str(&format!("  {}: {}\n", key, display));
+                }
+            }
+        }
+        yaml.into_bytes()
+    }
+
+    fn account_to_yaml_bytes(&self, account_data: AccountInto) -> Vec<u8> {
+        // if self.headers.is_empty() {
+        //     return Vec::new();
+        // }
+
+        let mut yaml = String::from("---\n");
+
+        yaml.push_str(&format!("account_info: {:#?}\n", account_data));
+
+        yaml.into_bytes()
+    }
+}
+
+pub enum InputParserFormat {
+    Csv,
+    CsvExtraFin,
+    Xml,
+    Camt053,
+    Mt940,
+}
+
+impl fmt::Display for InputParserFormat {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            InputParserFormat::Csv => write!(f, "csv"),
+            InputParserFormat::CsvExtraFin => write!(f, "CsvExtraFin♦"),
+            InputParserFormat::Xml => write!(f, "Xml"),
+            InputParserFormat::Mt940 => write!(f, "Mt940♣"),
+            InputParserFormat::Camt053 => write!(f, "Camt053♥"),
+        }
+    }
+}
+
+pub enum OutputParserFormat {
+    Csv,
+    CsvExtraFin,
+    Yaml,
+    // Xml,
+    Camt053,
+    Mt940,
+}
+impl fmt::Display for OutputParserFormat {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            OutputParserFormat::Csv => write!(f, "csv"),
+            OutputParserFormat::CsvExtraFin => write!(f, "CsvExtraFin♦"),
+            OutputParserFormat::Yaml => write!(f, "Yaml♠"),
+            OutputParserFormat::Mt940 => write!(f, "Mt940♣"),
+            OutputParserFormat::Camt053 => write!(f, "Camt053♥"),
+        }
+    }
+}
+
+// 🔑 The core struct: implements both Read and Write
+pub struct FinConverter {
+    // Input state (for Write)
+    process_input_type: InputParserFormat,
+    process_output_type: OutputParserFormat,
+    input_buffer: String,
+    flushed: bool,
+
+    // Output state (for Read)
+    output_bytes: Vec<u8>,
+    read_pos: usize,
+}
+
+impl FinConverter {
+    pub fn new(
+        process_input_type: InputParserFormat,
+        process_output_type: OutputParserFormat,
+    ) -> Self {
+        Self {
+            process_input_type: process_input_type,
+            process_output_type: process_output_type,
+            input_buffer: String::new(),
+            flushed: false,
+            output_bytes: Vec::new(),
+            read_pos: 0,
         }
     }
 
-    fn serialize_self(&self) -> String {
-        let data = parse_input(&self.input_string, &self.input_parser_type);
-        serialize_csv(&data.expect("Some wrong"))
-    }
-
-    fn serialize_as_csv(&self) -> String {
-        // let data = parse_input(&self.input_string, &self.input_parser_type);
-        serialize_csv(&self.aggregated_data)
-    }
-
-    fn serialize_as_xml(&self) -> String {
-        // let data = parse_input(&self.input_string, &self.input_parser_type);
-        serialize_xml(&self.aggregated_data)
-    }
-    
-    fn serialize_as_camt053(&self) -> String {
-        // let data = parse_input(&self.input_string, &self.input_parser_type);
-        serialize_camt053(&self.aggregated_data)
-    }
-
-    fn serialize_as_mt940(&self) -> String {
-        // let data = parse_input(&self.input_string, &self.input_parser_type);
-        serialize_mt940(&self.aggregated_data)
-    }
-}
-
-impl Parseble for UniParser {
-    fn get_describe(&self) {
-        println!("Drawing a SerilyzerCSV: {} ", self.input_string);
-    }
-    // fn serialize(&self, data: &Data) -> String {
-
-
-    //     serialize_csv(&data)
-    // }
-    
-
-
-}
-
-
-
-
-
-// Optional: a function that accepts any type implementing Parseble
-fn render_shape<T: Parseble>(shape: T) {
-    shape.get_describe();
-}
-
-
-// Optional: a function that accepts any type implementing Parseble
-fn generate_output<T: Parseble>(serializer: T) {
-    serializer.get_describe();
-}
-
-
-// use std::time::{SystemTime, UNIX_EPOCH};
-
-fn get_timestamped_path(original_path: &Path, format: &ParserFormat) -> PathBuf {
-    let now = time::OffsetDateTime::now_utc();
-    // println!("{}", now.format("%Y-%m-%d %H:%M:%S").unwrap());
-    let timestamp = now
-        .format(&time::format_description::well_known::Iso8601::DEFAULT)
-        .unwrap_or_else(|_| now.unix_timestamp().to_string())
-        .replace(':', "-")
-        .replace('+', "_")
-        .replace('Z', "");
-
-    let stem = original_path
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("output");
-    let ext = match format {
-        ParserFormat::Csv => "csv",
-        ParserFormat::Xml => "xml",
-        ParserFormat::Camt053 => "camt053",
-        ParserFormat::Mt940 => "mt940",
-    };
-
-    original_path.with_file_name(format!("{}-{}.{}", stem, timestamp, ext))
-}
-
-fn write_output (
-    dest: &str,
-    content: &str,
-    out_format: &ParserFormat,
-) -> Result<(), Box<dyn std::error::Error>> {
-    if dest == "-" {
-        let mut stdout = io::stdout();
-        stdout.write_all(content.as_bytes())?;
-        stdout.flush()?;
-        return Ok(());
-    }
-
-    let path = get_timestamped_path(Path::new(dest), out_format);
-    if let Some(parent) = path.parent() {
-        if !parent.exists() {
-            fs::create_dir_all(parent)?;
+    // Internal method: parse CSV and generate YAML bytes
+    fn process_data(&mut self) {
+        if self.flushed {
+            return;
         }
+
+        let mut parser = UniParser::default();
+        let mut parsed_account_data = match self.process_input_type {
+            InputParserFormat::Csv => parser.parse_csv_from_str(&self.input_buffer),
+            InputParserFormat::CsvExtraFin => {
+                parser.parse_csv_extra_fin_from_str(&self.input_buffer)
+            }
+            InputParserFormat::Xml => parser.parse_csv_from_str(&self.input_buffer),
+            InputParserFormat::Camt053 => parser.parse_camt053_from_str(&self.input_buffer),
+            InputParserFormat::Mt940 => parser.parse_mt940_from_str(&self.input_buffer),
+        };
+
+        // self.output_bytes = parser.account_to_yaml_bytes(account_data);
+        let rendered_result = match self.process_output_type {
+            OutputParserFormat::Csv => parsed_account_data.render_content_as_csv(),
+            OutputParserFormat::CsvExtraFin => {
+                parsed_account_data.render_content_as_csv_extra_fin()
+            }
+            OutputParserFormat::Yaml => parsed_account_data.render_content_as_yaml(),
+            OutputParserFormat::Camt053 => parsed_account_data.render_content_as_camt053(),
+            OutputParserFormat::Mt940 => parsed_account_data.render_content_as_mt940(),
+        };
+
+        self.output_bytes = rendered_result;
+        let mut output_format_str = format!("output_format: {}\n", self.process_output_type)
+            .as_bytes()
+            .to_vec();
+        let mut input_format_str = format!("input_format: {}\n", self.process_input_type)
+            .as_bytes()
+            .to_vec();
+        self.output_bytes.append(&mut input_format_str);
+        self.output_bytes.append(&mut output_format_str);
+
+        self.flushed = true;
     }
-    fs::write(&path, content)?;
-    eprintln!("Written to: {}", path.display());
-    Ok(())
 }
 
+use chardetng::EncodingDetector;
 
-pub fn parse_input_and_serialize_via_fn(input: &str, input_format: &ParserFormat, output_format: &ParserFormat, output: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let data = parse_input(input, input_format)?;
-    let output_content = match output_format {
-        ParserFormat::Csv => serialize_csv(&data), 
-        ParserFormat::Xml => serialize_xml(&data),
-        ParserFormat::Camt053 => serialize_camt053(&data),
-        ParserFormat::Mt940 => serialize_mt940(&data),
-    };
+fn detect_and_decode(buf: &[u8]) -> String {
+    let mut detector = EncodingDetector::new();
+    detector.feed(buf, true); // true = last buffer
+    let encoding = detector.guess(None, true);
+    let (cow, ..) = encoding.decode(buf);
+    cow.into_owned()
+}
+// detector.
 
-    // let output_content = serialized_result;
-    let _ = write_output(&output, &output_content, output_format);
-    Ok(())
+// 📥 Implement Write: accept CSV data
+impl Write for FinConverter {
+    fn write(&mut self, buf: &[u8]) -> Result<usize> {
+        let _detected_coding = detect_and_decode(buf);
+        let s = if let Ok(utf8) = std::str::from_utf8(buf) {
+            utf8.to_string()
+        } else {
+            detect_and_decode(buf)
+        };
+        self.input_buffer.push_str(&s);
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> Result<()> {
+        self.process_data(); // Parse and prepare YAML
+        self.flushed = false;
+        Ok(())
+    }
 }
 
+// 📤 Implement Read: emit YAML data
+// Read apply to buf
+impl Read for FinConverter {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        if self.read_pos >= self.output_bytes.len() {
+            return Ok(0); // EOF
+        }
 
-// ===== MAIN CONVERTER =====
-pub fn parse_input_and_serialize_via_trait(input: &str, input_format: &ParserFormat, output_format: &ParserFormat, output: &str) -> Result<(), Box<dyn std::error::Error>> {
-    // let data = UniParser{radius: 5.0}.parse_input(input, input_format);
-    
-    // let output_content = serialize_xml(&data);
-
-
-    // let serializer = UniParser(input_string: input.to_owned(), input_parser_type: input_format.to_owned());
-
-    let serializer = UniParser::new(input.to_string(), input_format.to_owned());
-
-
-    let output_content = match output_format {
-        ParserFormat::Csv => serializer.serialize_as_csv(),
-        ParserFormat::Xml => serializer.serialize_as_xml(),
-        ParserFormat::Camt053 => serializer.serialize_as_camt053(),
-        ParserFormat::Mt940 => serializer.serialize_as_mt940(),
-    };
-
-    // let output_content = serialized_result;
-    let _ = write_output(&output, &output_content, output_format);
-    Ok(())
+        let remaining = self.output_bytes.len() - self.read_pos;
+        let to_copy = std::cmp::min(buf.len(), remaining);
+        buf[..to_copy].copy_from_slice(&self.output_bytes[self.read_pos..self.read_pos + to_copy]);
+        self.read_pos += to_copy;
+        Ok(to_copy)
+    }
 }
 
+// ===== Example usage with stdio and BufReader/BufWriter =====
+pub fn parse_input_and_serialize_via_trait<TypeOfBuffInput: Read, TypeOfBuffOutput: Write>(
+    mut input_buff_reader: TypeOfBuffInput,
+    mut output_buff_writer: TypeOfBuffOutput,
+    process_input_type: InputParserFormat,
+    process_output_type: OutputParserFormat,
+) -> Result<()> {
+    // Create our transformer
+    let mut converter = FinConverter::new(process_input_type, process_output_type);
 
+    // 1️⃣ Read CSV from stdin using Read trait (via copy)
+    std::io::copy(&mut input_buff_reader, &mut converter)?;
 
+    // 2️⃣ Flush to trigger parsing (optional — Read will trigger it too)
+    converter.flush()?;
+
+    // 3️⃣ Write YAML to stdout using Read trait (via copy)
+    std::io::copy(&mut converter, &mut output_buff_writer)?;
+
+    Ok(())
+}
 
 
 mod tests;

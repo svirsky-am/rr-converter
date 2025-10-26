@@ -4,7 +4,14 @@
 use std::path::{Path, PathBuf};
 use std::fmt;
 
-pub struct TestConstants;
+
+use std::io::{BufReader, BufWriter, stdin, stdout};
+use std::path::Path;
+
+
+#[cfg(test)]
+mod tests {
+    pub struct TestConstants;
 
 impl TestConstants {
     pub const PROJECT_ROOT_DIR: &'static str = "../";
@@ -49,38 +56,14 @@ impl TestConstants {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use crate::{ parser::{parse_input_and_serialize_via_fn, parse_input_and_serialize_via_trait, UniParser, ParserFormat, read_file, render_shape}};
+
+    use crate::parser::{FinConverter, InputParserFormat, OutputParserFormat, parse_input_and_serialize_via_trait};
 
     use super::*;
     use std::io::ErrorKind;
 
-    // static PROJECT_ROOT_DIR = ;
-    // static PROJECT_ROOT_DIR = Path::new("../");
 
     #[test]
-    fn test_read_nonexistent_file() {
-        let fake_path = Path::new("/definitely/does/not/exist.txt");
-        let result = read_file(fake_path);
-        assert!(result.is_err());
-        assert_eq!(result.unwrap_err().kind(), ErrorKind::NotFound);
-    }
-
-    #[test]
-    fn test_convert_csv_to_xml_via_fn() {
-        // let fake_path = Path::new("../tests/test_files/example_of_report_bill_1.csv");
-        // let test_constants = std::cell::RefCell::new(TestConstants);
-        // let test_constants = TestConstants;
-        // let fake_path = Path::new("../tests/test_files/example_of_report_bill_1.csv");
-        let readed_file = read_file(Path::new(&TestConstants::get_test_sample_csv()));
-        assert!(readed_file.is_ok());
-        let save_result =     parse_input_and_serialize_via_fn(&TestConstants::get_test_sample_csv(),&ParserFormat::Csv, &ParserFormat::Xml, &TestConstants::get_output_path_xml() );
-        assert!(save_result.is_ok());
-
-        // assert_eq!(result.unwrap_err().kind(), ErrorKind::NotFound);
-    }
-
     fn test_convert_csv_to_xml_via_trait() {
         // let fake_path = Path::new("../tests/test_files/example_of_report_bill_1.csv");
         // let test_constants = std::cell::RefCell::new(TestConstants);
@@ -88,29 +71,102 @@ mod tests {
         // let fake_path = Path::new("../tests/test_files/example_of_report_bill_1.csv");
         let readed_file = read_file(Path::new(&TestConstants::get_test_sample_csv()));
         assert!(readed_file.is_ok());
-        let save_result = parse_input_and_serialize_via_trait(&TestConstants::get_test_sample_csv(),&ParserFormat::Csv, &ParserFormat::Xml, &TestConstants::get_output_path_xml() );
+        let save_result= parse_input_and_serialize_via_trait(
+                &TestConstants::get_test_sample_csv(),
+                &ParserFormat::Csv, 
+                &ParserFormat::Xml,
+                &TestConstants::get_output_path_xml() );
         assert!(save_result.is_ok());
+
+                // let input_file = File::open("samples/input.csv").unwrap();
+        let input_file = File::open("samples/example_of_report_bill_1_normalized_v1.csv").unwrap();
+        let reader_from_file = BufReader::new(input_file);
+
+        // Create a new file (this will overwrite if it already exists)
+        let output_file_path = Path::new("output/csv_to_csv.txt");
+        let outputfile = File::create(output_file_path)?;
+
+        let mut output_writer_file = BufWriter::new(outputfile);
+        let _result_1 = example_with_io_2(
+            reader_from_file,
+            output_writer_file,
+            InputParserFormat::CsvExtraFin,
+            OutputParserFormat::Csv,
+        );
+        assert!(_result_1.is_ok());
+        // Create a new file (this will overwrite if it already exists)
+
+        let _result_2 = example_with_io_2(
+            BufReader::new(File::open("samples/test.mt940")?),
+            BufWriter::new(File::create(Path::new("output/mt940_to_csv.txt"))?),
+            InputParserFormat::Mt940,
+            OutputParserFormat::Csv,
+        );
+
+        let _result_2 = example_with_io_2(
+            BufReader::new(File::open("samples/MT_940_oracle.mt940")?),
+            BufWriter::new(File::create(Path::new(
+                "output/MT_940_oracle.mt940_to_csv.txt",
+            ))?),
+            InputParserFormat::Mt940,
+            OutputParserFormat::Csv,
+        );
+
+        let _result_3 = example_with_io_2(
+            BufReader::new(File::open("samples/MT_940_aiophotoz.mt940")?),
+            BufWriter::new(File::create(Path::new(
+                "output/MT_940_aiophotoz.mt940_to_Camt053.txt",
+            ))?),
+            InputParserFormat::Mt940,
+            OutputParserFormat::Camt053,
+        );
+
+        let _result_4 = example_with_io_2(
+            BufReader::new(File::open("samples/MT940_github_1.mt940")?),
+            BufWriter::new(File::create(Path::new(
+                "output/MT940_github_1.mt940_to_Mt940.txt",
+            ))?),
+            InputParserFormat::Mt940,
+            OutputParserFormat::Mt940,
+        );
+
+        let _result_5 = example_with_io_2(
+            BufReader::new(File::open("samples/Camt.053_example_file_FI-CPE.xml")?),
+            BufWriter::new(File::create(Path::new(
+                "output/Camt.053_example_file_FI-CPE_camt_to_mt.txt",
+            ))?),
+            InputParserFormat::Camt053,
+            OutputParserFormat::Mt940,
+        );
+
+        let _result_6 = example_with_io_2(
+            BufReader::new(File::open("samples/camt053_dk_example.xml")?),
+            BufWriter::new(File::create(Path::new(
+                "output/camt053_dk_example_camt_to_yaml.txt",
+            ))?),
+            InputParserFormat::Camt053,
+            OutputParserFormat::Yaml,
+        );
+
+        // let mut reader_from_file = BufReader::new(input_file);
+        let mut output_writer_stdout = BufWriter::new(stdout());
+        let reader_from_sdtdio: BufReader<std::io::Stdin> = BufReader::new(stdin());
+        parse_input_and_serialize_via_trait(
+            reader_from_sdtdio,
+            output_writer_stdout,
+            InputParserFormat::Csv,
+            OutputParserFormat::Csv,
+        )
+
+        // println1
 
         // assert_eq!(result.unwrap_err().kind(), ErrorKind::NotFound);
     }
 
-    // #[test]
-    // fn test_parser_as_traite() {
-    //     let input_parse_mt940 = SerilyzerMT940 { radius: 5.0 };
-    //     let input_parser_csv = SerilyzerCSV { width: 10.0, height: 4.0 };
-    //     let input_parser_camt053 = SerilyzerCAMT053 { base: 6.0, height: 8.0 };
-    
-    //     // Call draw directly
-    //     input_parse_mt940.get_describe();
-    //     input_parser_csv.get_describe();
-    //     input_parser_camt053.get_describe();
-    
-    //     // Or use a generic function
-    //     render_shape(input_parse_mt940);
-    //     render_shape(input_parser_csv);
-    //     render_shape(input_parser_camt053);
-    
-    // }
 
 
 }
+
+
+
+
