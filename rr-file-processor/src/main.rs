@@ -85,6 +85,8 @@ fn get_timestamped_path(original_path: &Path, format: &ParserFormat) -> PathBuf 
     let ext = match format {
         ParserFormat::Csv => "csv",
         ParserFormat::Xml => "xml",
+        ParserFormat::Camt053 => "camt053",
+        ParserFormat::Mt940 => "mt940",
     };
 
     original_path.with_file_name(format!("{}-{}.{}", stem, timestamp, ext))
