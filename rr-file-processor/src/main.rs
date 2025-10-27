@@ -1,14 +1,14 @@
 use clap::{Arg, Command};
 use rr_parser_lib::{FinConverter, InputParserFormat, OutputParserFormat};
-use std::fs;
+use std::fs::{self, File};
 use std::io::{self, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 
 pub struct Cli {
     pub input: String,
     pub output: String,
-    pub in_format: ParserFormat,
-    pub out_format: ParserFormat,
+    pub in_format: InputParserFormat,
+    pub out_format: OutputParserFormat,
 }
 
 fn parse_cli() -> Result<Cli, Box<dyn std::error::Error>> {
@@ -167,8 +167,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // parse_input_and_serialize_via_trait(&input_content, &cli.in_format, &cli.out_format,  &cli.output )?;
 
 
-    let process_input_type: InputParserFormat = process_input_format(&cli.in_format)?;
-    let process_output_type = process_output_format(&cli.out_format)?;
+    let process_input_type: InputParserFormat = cli.in_format;
+    let process_output_type = cli.out_format;
 
 //     mut input_buff_reader: TypeOfBuffInput,
 //     mut output_buff_writer: TypeOfBuffOutput,
@@ -180,29 +180,38 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let input_file = fs::File::open(Path::new(&cli.input)).unwrap();
 
         
-    let input_buff_reader = BufReader::new(input_file);
-    let reader_from_sdtdio: BufReader<std::io::Stdin> = BufReader::new(io::stdin());
+    let mut input_buff_reader = BufReader::new(input_file);
+    let mut reader_from_sdtdio: BufReader<std::io::Stdin> = BufReader::new(io::stdin());
 
     let dash_string = "-";
+    dbg!(dash_string);
+    dbg!(&cli.input);
+    // dbg!(input_file);
 
     match &cli.input {
         dash_string => std::io::copy(&mut reader_from_sdtdio, &mut converter)?,
         _ => std::io::copy(&mut input_buff_reader, &mut converter)?
     };
-
-
     // 1️⃣ Read CSV from stdin using Read trait (via copy)
     std::io::copy(&mut input_buff_reader, &mut converter)?;
 
     // 2️⃣ Flush to trigger parsing (optional — Read will trigger it too)
     converter.flush()?;
     let mut output_writer_stdout = io::BufWriter::new(io::stdout());
-    let output_buff_writer = fs::File::create(Path::new("output/rust_1.txt")).unwrap();
 
-    // 3️⃣ Write buffer to out
+
+    let output_file = Path::new(&cli.output);
+    let parent_dir = output_file.parent().unwrap();
+
+    std::fs::create_dir_all(parent_dir).unwrap();
+    dbg!(&cli.output);
+
     match &cli.output {
         dash_string => std::io::copy(&mut converter, &mut output_writer_stdout)?,
-        _ => std::io::copy(&mut converter, &mut output_buff_writer)?
+        _ => {let outputfile = File::create(output_file).unwrap();
+            let mut output_writer_file = io::BufWriter::new(outputfile);
+            std::io::copy(&mut converter, &mut output_writer_file)?  
+        }
     };
     Ok(())
 }
