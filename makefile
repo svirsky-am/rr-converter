@@ -16,7 +16,7 @@ run-test-of-bin:
 build-and-exec-args-mode: run-test-of-libs
 	cargo build -p rr-file-processor
 	cargo run -p rr-file-processor -- \
-		--in-format csv --out-format xml \
+		--in-format csv --out-format yaml \
 		--input rr-file-processor/tests/test_files/data.csv \
 		--output output/formatted/result.xml
 

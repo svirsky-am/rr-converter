@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use std::fs;
 use std::path::{Path, PathBuf};
 // use std::io;
-use std::io::{self, BufReader, Read, Result, Write};
+use std::io::{self, BufReader, Read, Write};
 
 
 use std::fmt;
@@ -414,6 +414,8 @@ impl UniParser {
     }
 }
 
+
+#[derive(Debug, Clone)]
 pub enum InputParserFormat {
     Csv,
     CsvExtraFin,
@@ -457,6 +459,8 @@ impl InputParserFormat {
     }
 }
 
+
+#[derive(Debug, Clone)]
 pub enum OutputParserFormat {
     Csv,
     CsvExtraFin,
@@ -465,29 +469,46 @@ pub enum OutputParserFormat {
     Camt053,
     Mt940,
 }
-// impl fmt::Display for OutputParserFormat {
-//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//         match self {
-//             OutputParserFormat::Csv => write!(f, "csv"),
-//             OutputParserFormat::CsvExtraFin => write!(f, "CsvExtraFin♦"),
-//             OutputParserFormat::Yaml => write!(f, "Yaml♠"),
-//             OutputParserFormat::Mt940 => write!(f, "Mt940♣"),
-//             OutputParserFormat::Camt053 => write!(f, "Camt053♥"),
-//         }
-//     }
-// }
+impl fmt::Display for OutputParserFormat {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            OutputParserFormat::Csv => write!(f, "csv"),
+            OutputParserFormat::CsvExtraFin => write!(f, "CsvExtraFin"),
+            OutputParserFormat::Yaml => write!(f, "Yaml"),
+            OutputParserFormat::Mt940 => write!(f, "Mt940"),
+            OutputParserFormat::Camt053 => write!(f, "Camt053"),
+        }
+    }
+}
+
+
+
+
+#[derive(Debug)]
+pub struct ParseOutputParserFormatError(String);
+
+impl std::fmt::Display for ParseOutputParserFormatError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+impl std::error::Error for ParseOutputParserFormatError {}
+
 
 impl std::str::FromStr for OutputParserFormat {
     type Err = String;
+    // type Err = String;
 
     fn from_str(s: &str) -> Result<OutputParserFormat, String> {
-        match s.to_lowercase().as_str() {
+        let binding = s.to_lowercase();
+        let match_string = binding.as_str(); 
+        match match_string {
             "csv" => Ok(OutputParserFormat::Csv),
             "csvextrafin" => Ok(OutputParserFormat::CsvExtraFin),
             "yaml" => Ok(OutputParserFormat::Yaml),
             "camt053" => Ok(OutputParserFormat::Camt053),
             "mt940" => Ok(OutputParserFormat::Mt940),
-            _ => Err(format!("Unsupported format: {}. Supported: csv, xml, camt053, mt940")),
+            _ => Err(format!("Unsupported format: {}. Supported: csv, xml, camt053, mt940", match_string)),
         }
     }
 }
@@ -582,7 +603,7 @@ fn detect_and_decode(buf: &[u8]) -> String {
 
 // 📥 Implement Write: accept CSV data
 impl Write for FinConverter {
-    fn write(&mut self, buf: &[u8]) -> Result<usize> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let _detected_coding = detect_and_decode(buf);
         let s = if let Ok(utf8) = std::str::from_utf8(buf) {
             utf8.to_string()
@@ -593,7 +614,7 @@ impl Write for FinConverter {
         Ok(buf.len())
     }
 
-    fn flush(&mut self) -> Result<()> {
+    fn flush(&mut self) -> io::Result<()> {
         self.process_data(); // Parse and prepare YAML
         self.flushed = false;
         Ok(())
@@ -603,7 +624,7 @@ impl Write for FinConverter {
 // 📤 Implement Read: emit YAML data
 // Read apply to buf
 impl Read for FinConverter {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         if self.read_pos >= self.output_bytes.len() {
             return Ok(0); // EOF
         }
@@ -622,7 +643,7 @@ pub fn parse_input_and_serialize_via_trait<TypeOfBuffInput: Read, TypeOfBuffOutp
     mut output_buff_writer: TypeOfBuffOutput,
     process_input_type: InputParserFormat,
     process_output_type: OutputParserFormat,
-) -> Result<()> {
+) -> io::Result<()> {
     // Create our transformer
     let mut converter = FinConverter::new(process_input_type, process_output_type);
 

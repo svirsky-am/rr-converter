@@ -31,6 +31,13 @@ impl TestConstants {
         Path::new(Self::LOG_FILE)
     }
 
+    pub fn get_output_path() -> PathBuf {
+         Path::new(Self::PROJECT_ROOT_DIR)
+            .join(Self::OUTPUT_DIR)
+            // .as_path()
+            // .to_string_lossy().into_owned()
+    }
+
     // pub fn get_output_path_xml() -> String {
     //      Path::new(Self::PROJECT_ROOT_DIR)
     //         .join(Self::OUTPUT_DIR)
@@ -112,7 +119,21 @@ impl TestConstants {
 
         // Create a new file (this will overwrite if it already exists)
         // let output_file_path = Path::new("output/csv_to_csv.txt");
+        
+        let output_dir: &PathBuf  = &TestConstants::get_output_path();
+        // let output_dir_as_path: &Path = output_dir.as_path();
+        // let parent_dir = output_dir_as_path.parent().unwrap();
+        // std::fs::create_dir_all(parent_dir).unwrap();
+            // let output_dir: Path  = &TestConstants::get_output_path().as_path().parent()?;
+        std::fs::create_dir_all(output_dir).unwrap();
+        // if let Some(parent) = Path::new(&TestConstants::get_output_path()).parent() {
+        //     if !parent.exists() {
+        //         std::fs::create_dir_all(parent).unwrap();
+        //     }
+        // }
+        // fs::
         let outputfile = File::create(Path::new(&TestConstants::get_output_dir_path("csv_to_csv.txt".to_string()))).unwrap();
+
 
         let mut output_writer_file = BufWriter::new(outputfile);
         let _result_1 = parse_input_and_serialize_via_trait(
