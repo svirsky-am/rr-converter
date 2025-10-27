@@ -1,7 +1,7 @@
 use clap::{Arg, Command};
-use rr_parser_lib::{ParserFormat, parse_input, serialize_output, parse_input_and_serialize_via_trait};
+use rr_parser_lib::{FinConverter, InputParserFormat, OutputParserFormat};
 use std::fs;
-use std::io::{self, Read, Write};
+use std::io::{self, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 
 pub struct Cli {
@@ -36,26 +36,31 @@ fn parse_cli() -> Result<Cli, Box<dyn std::error::Error>> {
                 .long("in-format")
                 .help("Input format: csv or xml")
                 .required(true)
-                .value_parser(parse_format_clap),
+                .value_parser(parse_input_format_clap),
         )
         .arg(
             Arg::new("out-format")
                 .long("out-format")
                 .help("Output format: csv or xml")
                 .required(true)
-                .value_parser(parse_format_clap),
+                .value_parser(parse_output_format_clap),
         )
         .get_matches();
 
     Ok(Cli {
         input: matches.get_one::<String>("input").unwrap().clone(),
         output: matches.get_one::<String>("output").unwrap().clone(),
-        in_format: matches.get_one::<ParserFormat>("in-format").unwrap().clone(),
-        out_format: matches.get_one::<ParserFormat>("out-format").unwrap().clone(),
+        in_format: matches.get_one::<InputParserFormat>("in-format").unwrap().clone(),
+        out_format: matches.get_one::<OutputParserFormat>("out-format").unwrap().clone(),
     })
 }
 
-fn parse_format_clap(s: &str) -> Result<ParserFormat, String> {
+fn parse_input_format_clap(s: &str) -> Result<InputParserFormat, String> {
+    s.parse()
+}
+
+
+fn parse_output_format_clap(s: &str) -> Result<OutputParserFormat, String> {
     s.parse()
 }
 
@@ -69,59 +74,135 @@ fn read_input(source: &str) -> Result<String, Box<dyn std::error::Error>> {
     }
 }
 
-fn get_timestamped_path(original_path: &Path, format: &ParserFormat) -> PathBuf {
-    let now = time::OffsetDateTime::now_utc();
-    let timestamp = now
-        .format(&time::format_description::well_known::Iso8601::DEFAULT)
-        .unwrap_or_else(|_| now.unix_timestamp().to_string())
-        .replace(':', "-")
-        .replace('+', "_")
-        .replace('Z', "");
+// fn get_timestamped_path(original_path: &Path, format: &OutputParserFormat) -> PathBuf {
+//     let now = time::OffsetDateTime::now_utc();
+//     let timestamp = now
+//         .format(&time::format_description::well_known::Iso8601::DEFAULT)
+//         .unwrap_or_else(|_| now.unix_timestamp().to_string())
+//         .replace(':', "-")
+//         .replace('+', "_")
+//         .replace('Z', "");
 
-    let stem = original_path
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("output");
-    let ext = match format {
-        ParserFormat::Csv => "csv",
-        ParserFormat::Xml => "xml",
-        ParserFormat::Camt053 => "camt053",
-        ParserFormat::Mt940 => "mt940",
-    };
+//     let stem = original_path
+//         .file_stem()
+//         .and_then(|s| s.to_str())
+//         .unwrap_or("output");
+//     let ext = match format {
+//         OutputParserFormat::Csv => "csv",
+//         OutputParserFormat::Yaml => "yaml",
+//         OutputParserFormat::Camt053 => "camt053",
+//         OutputParserFormat::Mt940 => "mt940",
+//     };
 
-    original_path.with_file_name(format!("{}-{}.{}", stem, timestamp, ext))
+//     original_path.with_file_name(format!("{}-{}.{}", stem, timestamp, ext))
+// }
+
+// fn write_output(
+//     dest: &str,
+//     content: &str,
+//     out_format: &OutputParserFormat,
+// ) -> Result<(), Box<dyn std::error::Error>> {
+//     if dest == "-" {
+//         let mut stdout = io::stdout();
+//         stdout.write_all(content.as_bytes())?;
+//         stdout.flush()?;
+//         return Ok(());
+//     }
+
+//     let path = get_timestamped_path(Path::new(dest), out_format);
+//     if let Some(parent) = path.parent() {
+//         if !parent.exists() {
+//             fs::create_dir_all(parent)?;
+//         }
+//     }
+//     fs::write(&path, content)?;
+//     eprintln!("Written to: {}", path.display());
+//     Ok(())
+// }
+
+
+// // ===== MAIN CONVERTER =====
+// pub fn parse_input(input: &str, format: &ParserFormat) -> Result<Data, Box<dyn std::error::Error>> {
+//     match format {
+//         ParserFormat::Csv => parse_csv(input),
+//         ParserFormat::Xml => parse_xml(input),
+//         ParserFormat::Camt053 => parse_camt053(input),
+//         ParserFormat::Mt940 => parse_mt940(input),
+//     }
+// }
+
+
+
+fn process_input_format(command: &str) -> Result<InputParserFormat, Box<dyn std::error::Error>> {
+    match command {
+        "csv" => Ok(InputParserFormat::Csv),
+        "csvextrafin" => Ok(InputParserFormat::CsvExtraFin),
+        "mt940" => Ok(InputParserFormat::Mt940),
+        "xml" => Ok(InputParserFormat::Xml),
+        "camt053" => Ok(InputParserFormat::Camt053),
+        _ => Err(format!("Unknown command. Supported argument for in-format: {:#?}\n"," &InputParserFormat::all_variants()").into()) , // The catch-all pattern
+    }
 }
 
-fn write_output(
-    dest: &str,
-    content: &str,
-    out_format: &ParserFormat,
-) -> Result<(), Box<dyn std::error::Error>> {
-    if dest == "-" {
-        let mut stdout = io::stdout();
-        stdout.write_all(content.as_bytes())?;
-        stdout.flush()?;
-        return Ok(());
-    }
 
-    let path = get_timestamped_path(Path::new(dest), out_format);
-    if let Some(parent) = path.parent() {
-        if !parent.exists() {
-            fs::create_dir_all(parent)?;
-        }
+fn process_output_format(command: &str) -> Result<OutputParserFormat, Box<dyn std::error::Error>> {
+    match command {
+        "csv" => Ok(OutputParserFormat::Csv),
+        "csvextrafin" => Ok(OutputParserFormat::CsvExtraFin),
+        "mt940" => Ok(OutputParserFormat::Mt940),
+        "yaml" => Ok(OutputParserFormat::Yaml),
+        "camt053" => Ok(OutputParserFormat::Camt053),
+        _ => Err(format!("Unknown command. Supported argument for output-format: {:#?}\n"," &OutputParserFormat::all_variants()").into()) , // The catch-all pattern
     }
-    fs::write(&path, content)?;
-    eprintln!("Written to: {}", path.display());
-    Ok(())
 }
+
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = parse_cli()?;
     let input_content = read_input(&cli.input)?;
-    let data = parse_input(&input_content, &cli.in_format)?;
-    let output_content = serialize_output(&data, &cli.out_format)?;
+    // let in_format = parse_input(&input_content, &cli.in_format)?;
+    // let output_content = serialize_output(&data, &cli.out_format)?;
     // write_output(&cli.output, &output_content, &cli.out_format)?;
 
-    parse_input_and_serialize_via_trait(&input_content, &cli.in_format, &cli.out_format,  &cli.output )?;
+    // parse_input_and_serialize_via_trait(&input_content, &cli.in_format, &cli.out_format,  &cli.output )?;
+
+
+    let process_input_type: InputParserFormat = process_input_format(&cli.in_format)?;
+    let process_output_type = process_output_format(&cli.out_format)?;
+
+//     mut input_buff_reader: TypeOfBuffInput,
+//     mut output_buff_writer: TypeOfBuffOutput,
+//     process_input_type: InputParserFormat,
+//     process_output_type: OutputParserFormat,
+// ) -> Result<()> {
+    // Create our transformer
+    let mut converter = FinConverter::new(process_input_type, process_output_type);
+    let input_file = fs::File::open(Path::new(&cli.input)).unwrap();
+
+        
+    let input_buff_reader = BufReader::new(input_file);
+    let reader_from_sdtdio: BufReader<std::io::Stdin> = BufReader::new(io::stdin());
+
+    let dash_string = "-";
+
+    match &cli.input {
+        dash_string => std::io::copy(&mut reader_from_sdtdio, &mut converter)?,
+        _ => std::io::copy(&mut input_buff_reader, &mut converter)?
+    };
+
+
+    // 1️⃣ Read CSV from stdin using Read trait (via copy)
+    std::io::copy(&mut input_buff_reader, &mut converter)?;
+
+    // 2️⃣ Flush to trigger parsing (optional — Read will trigger it too)
+    converter.flush()?;
+    let mut output_writer_stdout = io::BufWriter::new(io::stdout());
+    let output_buff_writer = fs::File::create(Path::new("output/rust_1.txt")).unwrap();
+
+    // 3️⃣ Write buffer to out
+    match &cli.output {
+        dash_string => std::io::copy(&mut converter, &mut output_writer_stdout)?,
+        _ => std::io::copy(&mut converter, &mut output_buff_writer)?
+    };
     Ok(())
 }
