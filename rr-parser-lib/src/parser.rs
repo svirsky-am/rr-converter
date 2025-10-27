@@ -460,18 +460,24 @@ impl InputParserFormat {
 }
 
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, strum_macros::EnumString)]
 pub enum OutputParserFormat {
+    #[strum(serialize = "csv")]
     Csv,
+    #[strum(serialize = "csvextrafin",  serialize = "csv_extra_fin")]
     CsvExtraFin,
+    #[strum(serialize = "yaml")]
     Yaml,
     // Xml,
+    #[strum(serialize = "camt053")]
     Camt053,
+    #[strum(serialize = "mt940")]
     Mt940,
 }
 impl fmt::Display for OutputParserFormat {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
+
             OutputParserFormat::Csv => write!(f, "csv"),
             OutputParserFormat::CsvExtraFin => write!(f, "CsvExtraFin"),
             OutputParserFormat::Yaml => write!(f, "Yaml"),
@@ -495,23 +501,23 @@ impl std::fmt::Display for ParseOutputParserFormatError {
 impl std::error::Error for ParseOutputParserFormatError {}
 
 
-impl std::str::FromStr for OutputParserFormat {
-    type Err = String;
-    // type Err = String;
+// impl std::str::FromStr for OutputParserFormat {
+//     type Err = String;
+//     // type Err = String;
 
-    fn from_str(s: &str) -> Result<OutputParserFormat, String> {
-        let binding = s.to_lowercase();
-        let match_string = binding.as_str(); 
-        match match_string {
-            "csv" => Ok(OutputParserFormat::Csv),
-            "csvextrafin" => Ok(OutputParserFormat::CsvExtraFin),
-            "yaml" => Ok(OutputParserFormat::Yaml),
-            "camt053" => Ok(OutputParserFormat::Camt053),
-            "mt940" => Ok(OutputParserFormat::Mt940),
-            _ => Err(format!("Unsupported format: {}. Supported: csv, xml, camt053, mt940", match_string)),
-        }
-    }
-}
+//     fn from_str(s: &str) -> Result<OutputParserFormat, String> {
+//         let binding = s.to_lowercase();
+//         let match_string = binding.as_str(); 
+//         match match_string {
+//             "csv" => Ok(OutputParserFormat::Csv),
+//             "csvextrafin" => Ok(OutputParserFormat::CsvExtraFin),
+//             "yaml" => Ok(OutputParserFormat::Yaml),
+//             "camt053" => Ok(OutputParserFormat::Camt053),
+//             "mt940" => Ok(OutputParserFormat::Mt940),
+//             _ => Err(format!("Unsupported format: {}. Supported: csv, xml, camt053, mt940", match_string)),
+//         }
+//     }
+// }
 
 impl OutputParserFormat {
     pub fn all_variants() -> &'static [OutputParserFormat] {
@@ -622,7 +628,7 @@ impl Write for FinConverter {
 }
 
 // 📤 Implement Read: emit YAML data
-// Read apply to buf
+// Read apply to buffer of converter
 impl Read for FinConverter {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         if self.read_pos >= self.output_bytes.len() {

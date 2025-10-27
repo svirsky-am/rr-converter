@@ -17,28 +17,28 @@ build-and-exec-args-mode: run-test-of-libs
 	cargo build -p rr-file-processor
 	cargo run -p rr-file-processor -- \
 		--in-format csv --out-format yaml \
-		--input rr-file-processor/tests/test_files/data.csv \
+		--input tests/test_files/example_of_report_bill_1.csv \
 		--output output/formatted/result.xml
 
 .PHONY: test_stdin_csv_to_xml
 test_stdin_csv_to_xml:
-	cat rr-file-processor/tests/test_files/data.csv  | \
+	cat tests/test_files/example_of_report_bill_1.csv  | \
 		target/debug/rr-file-processor \
-			--in-format csv --out-format xml \
+			--in-format csv --out-format yaml \
 			--input  - \
 			--output output/formatted/stdin_csv_to_xml
 
 .PHONY: test_csv_to_xml
 test_csv_to_xml:
 	target/debug/rr-file-processor \
-		--in-format csv --out-format xml \
-		--input  rr-file-processor/tests/test_files/data.csv  \
+		--in-format csv --out-format camt053 \
+		--input  tests/test_files/example_of_report_bill_1_normalized_v1.csv \
 		--output output/formatted/csv_to_xml
 
 .PHONY: test_xml_to_csv
 test_xml_to_csv:
 	target/debug/rr-file-processor \
-			--in-format xml --out-format csv \
+			--in-format csv --out-format csv \
 			--input  rr-file-processor/tests/test_files/data.xml \
 			--output output/formatted/xml_to_csv
 

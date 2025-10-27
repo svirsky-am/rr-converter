@@ -4,6 +4,8 @@ use std::fs::{self, File};
 use std::io::{self, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 
+
+// #[derive(Parser)]
 pub struct Cli {
     pub input: String,
     pub output: String,
@@ -60,7 +62,7 @@ fn parse_input_format_clap(s: &str) -> Result<InputParserFormat, String> {
 }
 
 
-fn parse_output_format_clap(s: &str) -> Result<OutputParserFormat, String> {
+fn parse_output_format_clap(s: &str) -> Result<OutputParserFormat, rr_parser_lib::ParseError> {
     s.parse()
 }
 
@@ -177,23 +179,32 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 // ) -> Result<()> {
     // Create our transformer
     let mut converter = FinConverter::new(process_input_type, process_output_type);
-    let input_file = fs::File::open(Path::new(&cli.input)).unwrap();
+    
+    
 
-        
-    let mut input_buff_reader = BufReader::new(input_file);
+
     let mut reader_from_sdtdio: BufReader<std::io::Stdin> = BufReader::new(io::stdin());
 
     let dash_string = "-";
-    dbg!(dash_string);
     dbg!(&cli.input);
-    // dbg!(input_file);
+    dbg!(&cli.input);
 
-    match &cli.input {
-        dash_string => std::io::copy(&mut reader_from_sdtdio, &mut converter)?,
-        _ => std::io::copy(&mut input_buff_reader, &mut converter)?
+        // 1️⃣ Read CSV from stdin using Read trait (via copy)
+    match &cli.input == dash_string {
+        true => {
+            dbg!("try to read from sdtio");
+            std::io::copy(&mut reader_from_sdtdio, &mut converter)?
+            // std::io::copy(&mut input_buff_reader, &mut converter)?
+        },
+        false => {
+            dbg!("try to read from file");
+            let input_file = fs::File::open(Path::new(&cli.input)).unwrap();       
+            let mut input_buff_reader = BufReader::new(input_file);
+            std::io::copy(&mut input_buff_reader, &mut converter)?
+        }
     };
-    // 1️⃣ Read CSV from stdin using Read trait (via copy)
-    std::io::copy(&mut input_buff_reader, &mut converter)?;
+
+    // std::io::copy(&mut input_buff_reader, &mut converter)?;
 
     // 2️⃣ Flush to trigger parsing (optional — Read will trigger it too)
     converter.flush()?;
@@ -206,8 +217,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     std::fs::create_dir_all(parent_dir).unwrap();
     dbg!(&cli.output);
 
-    match &cli.output {
-        dash_string => std::io::copy(&mut converter, &mut output_writer_stdout)?,
+    let output_is_std_out = &cli.output == dash_string;
+
+    match &cli.output == dash_string {
+        true => {
+                dbg!(output_is_std_out);
+                std::io::copy(&mut converter, &mut output_writer_stdout)
+            ?},
         _ => {let outputfile = File::create(output_file).unwrap();
             let mut output_writer_file = io::BufWriter::new(outputfile);
             std::io::copy(&mut converter, &mut output_writer_file)?  
