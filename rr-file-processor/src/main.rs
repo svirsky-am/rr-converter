@@ -4,6 +4,8 @@ use std::fs::{self, File};
 use std::io::{self, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 
+
+// #[derive(Parser)]
 pub struct Cli {
     pub input: String,
     pub output: String,
@@ -60,7 +62,7 @@ fn parse_input_format_clap(s: &str) -> Result<InputParserFormat, String> {
 }
 
 
-fn parse_output_format_clap(s: &str) -> Result<OutputParserFormat, String> {
+fn parse_output_format_clap(s: &str) -> Result<OutputParserFormat, rr_parser_lib::ParseError> {
     s.parse()
 }
 
