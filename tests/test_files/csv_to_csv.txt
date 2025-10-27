@@ -1,9 +1,0 @@
----
-account_info: AccountInto {
-    description: "csv from str",
-    id: 7,
-    transactions: [],
-    currency: "",
-}
-input_format: CsvExtraFin♦
-output_format: csv

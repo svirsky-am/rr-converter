@@ -1,9 +1,0 @@
----
-account_info: AccountInto {
-    description: "csv from str",
-    id: 6,
-    transactions: [],
-    currency: "",
-}
-input_format: Mt940♣
-output_format: Camt053♥

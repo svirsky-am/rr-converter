@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use std::fs;
 use std::path::{Path, PathBuf};
 // use std::io;
-use std::io::{self, Read, Write, Result};
+use std::io::{self, BufReader, Read, Result, Write};
 
 
 use std::fmt;
@@ -242,17 +242,43 @@ impl UniParser {
         let mut opened_xml_nodes: Vec<XmlNode> = Vec::new();
         // let mut current_row = HashMap::new();
         let mut to_find_account_id = false;
+        let mut xml_cursor_in_comment = false;
 
         let mut cur_open_node = XmlNode {
-            tag_name: todo!(),
-            value: todo!(),
+            tag_name: "test_tag".to_string(),
+            value: "test_tag".to_string(),
             parent: None,
         };
 
+        let mut rc_to_cur_node = Rc::new(RefCell::new(cur_open_node));
+
         for line in lines {
+
+            
+
+
             let line = line.trim();
             if !line.is_empty() {
                 let trimmed = line.trim();
+
+                // Skip one line comment
+                if trimmed.starts_with("<!--") && trimmed.ends_with("-->"){
+                    continue;
+                }
+
+
+                // Skip one comment lines
+                if trimmed.starts_with("<!--") && !trimmed.ends_with("-->"){
+                    xml_cursor_in_comment = true;
+                    continue;
+                } else if!trimmed.starts_with("<!--") && trimmed.ends_with("-->"){
+                    xml_cursor_in_comment = false;
+                    continue;
+                } else if  xml_cursor_in_comment == true{
+                    continue;
+                }
+
+                // xml_cursor_in_comment
 
                 if trimmed.starts_with("<Stmt") && trimmed.ends_with('>') {
                     to_find_account_id = true;
@@ -261,18 +287,20 @@ impl UniParser {
                     to_find_account_id = false
                 }
 
-                match find_xml_tag_with_value_in_line(
-                    &trimmed,
-                    &Rc::new(RefCell::new(cur_open_node)),
-                ) {
-                    Some((xml_node)) => {
-                        println!(
-                            "Нашли елемент: {} {}",
-                            &xml_node.borrow().tag_name,
-                            &xml_node.borrow().value
-                        )
+                if to_find_account_id == true {
+                    match find_xml_tag_with_value_in_line(
+                        &trimmed,
+                        &mut rc_to_cur_node,
+                    ) {
+                        Some((xml_node)) => {
+                            println!(
+                                "Нашли елемент: {} {}",
+                                &xml_node.borrow().tag_name,
+                                &xml_node.borrow().value
+                            )
+                        }
+                        None => println!("Ничего не нашли"),
                     }
-                    None => println!("Ничего не нашли"),
                 }
 
                 // if in_record == true {
@@ -406,6 +434,29 @@ impl fmt::Display for InputParserFormat {
     }
 }
 
+
+
+impl std::str::FromStr for InputParserFormat {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err>  {
+        match s.to_lowercase().as_str() {
+            "csv" => Ok(InputParserFormat::Csv),
+            "csvextrafin" => Ok(InputParserFormat::CsvExtraFin),
+            "xml" => Ok(InputParserFormat::Xml),
+            "camt053" => Ok(InputParserFormat::Camt053),
+            "mt940" => Ok(InputParserFormat::Mt940),
+            _ => Err(format!("Unsupported format: {}. Supported: csv, xml, camt053, mt940", s)),
+        }
+    }
+}
+
+impl InputParserFormat {
+    pub fn all_variants() -> &'static [InputParserFormat] {
+        &[InputParserFormat::Csv, InputParserFormat::CsvExtraFin, InputParserFormat::Xml, InputParserFormat::Mt940]
+    }
+}
+
 pub enum OutputParserFormat {
     Csv,
     CsvExtraFin,
@@ -414,17 +465,39 @@ pub enum OutputParserFormat {
     Camt053,
     Mt940,
 }
-impl fmt::Display for OutputParserFormat {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            OutputParserFormat::Csv => write!(f, "csv"),
-            OutputParserFormat::CsvExtraFin => write!(f, "CsvExtraFin♦"),
-            OutputParserFormat::Yaml => write!(f, "Yaml♠"),
-            OutputParserFormat::Mt940 => write!(f, "Mt940♣"),
-            OutputParserFormat::Camt053 => write!(f, "Camt053♥"),
+// impl fmt::Display for OutputParserFormat {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//         match self {
+//             OutputParserFormat::Csv => write!(f, "csv"),
+//             OutputParserFormat::CsvExtraFin => write!(f, "CsvExtraFin♦"),
+//             OutputParserFormat::Yaml => write!(f, "Yaml♠"),
+//             OutputParserFormat::Mt940 => write!(f, "Mt940♣"),
+//             OutputParserFormat::Camt053 => write!(f, "Camt053♥"),
+//         }
+//     }
+// }
+
+impl std::str::FromStr for OutputParserFormat {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<OutputParserFormat, String> {
+        match s.to_lowercase().as_str() {
+            "csv" => Ok(OutputParserFormat::Csv),
+            "csvextrafin" => Ok(OutputParserFormat::CsvExtraFin),
+            "yaml" => Ok(OutputParserFormat::Yaml),
+            "camt053" => Ok(OutputParserFormat::Camt053),
+            "mt940" => Ok(OutputParserFormat::Mt940),
+            _ => Err(format!("Unsupported format: {}. Supported: csv, xml, camt053, mt940")),
         }
     }
 }
+
+impl OutputParserFormat {
+    pub fn all_variants() -> &'static [OutputParserFormat] {
+        &[OutputParserFormat::Csv, OutputParserFormat::CsvExtraFin, OutputParserFormat::Yaml, OutputParserFormat::Mt940]
+    }
+}
+
 
 // 🔑 The core struct: implements both Read and Write
 pub struct FinConverter {
@@ -554,6 +627,9 @@ pub fn parse_input_and_serialize_via_trait<TypeOfBuffInput: Read, TypeOfBuffOutp
     let mut converter = FinConverter::new(process_input_type, process_output_type);
 
     // 1️⃣ Read CSV from stdin using Read trait (via copy)
+
+
+   
     std::io::copy(&mut input_buff_reader, &mut converter)?;
 
     // 2️⃣ Flush to trigger parsing (optional — Read will trigger it too)
