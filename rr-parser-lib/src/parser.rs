@@ -292,7 +292,7 @@ impl UniParser {
                         &trimmed,
                         &mut rc_to_cur_node,
                     ) {
-                        Some((xml_node)) => {
+                        Some(xml_node) => {
                             println!(
                                 "Нашли елемент: {} {}",
                                 &xml_node.borrow().tag_name,
@@ -537,6 +537,9 @@ pub struct FinConverter {
     // Output state (for Read)
     output_bytes: Vec<u8>,
     read_pos: usize,
+
+    //debug
+    log_work_dir: PathBuf
 }
 
 impl FinConverter {
@@ -551,6 +554,18 @@ impl FinConverter {
             flushed: false,
             output_bytes: Vec::new(),
             read_pos: 0,
+            log_work_dir: PathBuf::from(".log_workdir".to_string()),
+        }
+    }
+
+    pub fn create_log_dir(&self, output_filename: String) {
+        // let output_dir: &PathBuf  = &self.log_work_dir;
+        if !&self.log_work_dir.as_path().exists() {
+                let result_of_create_dir= std::fs::create_dir_all(&self.log_work_dir);
+                dbg!(&result_of_create_dir);
+                dbg!(result_of_create_dir.unwrap())
+                // Some(result_of_create_dir)
+            // }
         }
     }
 
