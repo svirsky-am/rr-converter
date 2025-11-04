@@ -2,6 +2,10 @@
 run-test-of-libs:
 	cargo test -p rr-parser-lib
 
+.PHONY: fmt-libs
+fmt-libs:
+	cargo fmt -p rr-parser-lib
+	cargo clippy --allow-dirty --fix -p rr-parser-lib
 
 .PHONY: run-fix-lint-for-lib
 run-fix-lint-for-lib:

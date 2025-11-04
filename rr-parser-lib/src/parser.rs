@@ -1,16 +1,9 @@
 use std::cell::RefCell;
 
-use std::fs;
-use std::path::{Path, PathBuf};
 // use std::io;
-use std::io::{self, BufReader, Read, Write};
-
+use std::io::{self, Read, Write};
 
 use std::fmt;
-
-
-use std::collections::{HashMap, HashSet};
-use std::fs::File;
 
 use std::rc::Rc;
 
@@ -49,8 +42,8 @@ impl Default for AccountInto {
 impl AccountInto {
     pub fn new(id: u32, description: String) -> Self {
         Self {
-            id: id,
-            description: description,
+            id,
+            description,
             ..Default::default()
         }
     }
@@ -122,8 +115,8 @@ fn find_xml_xml_tag_with_value_in_line(trimed_line: &str) -> Option<Rc<RefCell<X
         value: content.to_owned(),
         parent: None,
     }));
-    if content.len() != 0 {
-        return Some(result_node);
+    if !content.is_empty() {
+        Some(result_node)
     } else {
         None
     }
@@ -144,8 +137,8 @@ fn find_open_tag(trimed_line: &str) -> Option<Rc<RefCell<XmlNode>>> {
         value: content.to_owned(),
         parent: None,
     }));
-    if content.len() != 0 {
-        return Some(result_node);
+    if !content.is_empty() {
+        Some(result_node)
     } else {
         None
     }
@@ -169,8 +162,8 @@ fn find_xml_tag_with_value_in_line(
         value: content.to_owned(),
         parent: Some(Rc::clone(parent_node)),
     }));
-    if content.len() != 0 {
-        return Some(result_node);
+    if !content.is_empty() {
+        Some(result_node)
     } else {
         None
     }
@@ -236,15 +229,15 @@ impl UniParser {
     }
 
     fn parse_camt053_from_str(&mut self, input: &str) -> AccountInto {
-        let mut lines = input.lines();
-        let mut data_transactions: Vec<Transaction> = Vec::new();
+        let lines = input.lines();
+        let data_transactions: Vec<Transaction> = Vec::new();
         let account_data = AccountInto::new(3, "camt053 from str".to_owned());
-        let mut opened_xml_nodes: Vec<XmlNode> = Vec::new();
+        let opened_xml_nodes: Vec<XmlNode> = Vec::new();
         // let mut current_row = HashMap::new();
         let mut to_find_account_id = false;
         let mut xml_cursor_in_comment = false;
 
-        let mut cur_open_node = XmlNode {
+        let cur_open_node = XmlNode {
             tag_name: "test_tag".to_string(),
             value: "test_tag".to_string(),
             parent: None,
@@ -253,28 +246,23 @@ impl UniParser {
         let mut rc_to_cur_node = Rc::new(RefCell::new(cur_open_node));
 
         for line in lines {
-
-            
-
-
             let line = line.trim();
             if !line.is_empty() {
                 let trimmed = line.trim();
 
                 // Skip one line comment
-                if trimmed.starts_with("<!--") && trimmed.ends_with("-->"){
+                if trimmed.starts_with("<!--") && trimmed.ends_with("-->") {
                     continue;
                 }
 
-
                 // Skip one comment lines
-                if trimmed.starts_with("<!--") && !trimmed.ends_with("-->"){
+                if trimmed.starts_with("<!--") && !trimmed.ends_with("-->") {
                     xml_cursor_in_comment = true;
                     continue;
-                } else if!trimmed.starts_with("<!--") && trimmed.ends_with("-->"){
+                } else if !trimmed.starts_with("<!--") && trimmed.ends_with("-->") {
                     xml_cursor_in_comment = false;
                     continue;
-                } else if  xml_cursor_in_comment == true{
+                } else if xml_cursor_in_comment {
                     continue;
                 }
 
@@ -287,12 +275,9 @@ impl UniParser {
                     to_find_account_id = false
                 }
 
-                if to_find_account_id == true {
-                    match find_xml_tag_with_value_in_line(
-                        &trimmed,
-                        &mut rc_to_cur_node,
-                    ) {
-                        Some((xml_node)) => {
+                if to_find_account_id {
+                    match find_xml_tag_with_value_in_line(trimmed, &mut rc_to_cur_node) {
+                        Some(xml_node) => {
                             println!(
                                 "Нашли елемент: {} {}",
                                 &xml_node.borrow().tag_name,
@@ -348,7 +333,6 @@ impl UniParser {
             self.headers = header.split(',').map(|s| s.trim().to_string()).collect();
         }
 
-        let account_data = AccountInto::new(6, "csv from str".to_owned());
         // if let Some(header) = lines.next() {
         //     self.headers = header.split(',').map(|s| s.trim().to_string()).collect();
         // }
@@ -373,7 +357,7 @@ impl UniParser {
         // }
 
         // dbg!(&data_transactions);
-        account_data
+        AccountInto::new(6, "csv from str".to_owned())
     }
 
     fn to_yaml_bytes(&self) -> Vec<u8> {
@@ -414,7 +398,6 @@ impl UniParser {
     }
 }
 
-
 #[derive(Debug, Clone)]
 pub enum InputParserFormat {
     Csv,
@@ -436,35 +419,40 @@ impl fmt::Display for InputParserFormat {
     }
 }
 
-
-
 impl std::str::FromStr for InputParserFormat {
     type Err = String;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err>  {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
             "csv" => Ok(InputParserFormat::Csv),
             "csvextrafin" => Ok(InputParserFormat::CsvExtraFin),
             "xml" => Ok(InputParserFormat::Xml),
             "camt053" => Ok(InputParserFormat::Camt053),
             "mt940" => Ok(InputParserFormat::Mt940),
-            _ => Err(format!("Unsupported format: {}. Supported: csv, xml, camt053, mt940", s)),
+            _ => Err(format!(
+                "Unsupported format: {}. Supported: csv, xml, camt053, mt940",
+                s
+            )),
         }
     }
 }
 
 impl InputParserFormat {
     pub fn all_variants() -> &'static [InputParserFormat] {
-        &[InputParserFormat::Csv, InputParserFormat::CsvExtraFin, InputParserFormat::Xml, InputParserFormat::Mt940]
+        &[
+            InputParserFormat::Csv,
+            InputParserFormat::CsvExtraFin,
+            InputParserFormat::Xml,
+            InputParserFormat::Mt940,
+        ]
     }
 }
-
 
 #[derive(Debug, Clone, strum_macros::EnumString)]
 pub enum OutputParserFormat {
     #[strum(serialize = "csv")]
     Csv,
-    #[strum(serialize = "csvextrafin",  serialize = "csv_extra_fin")]
+    #[strum(serialize = "csvextrafin", serialize = "csv_extra_fin")]
     CsvExtraFin,
     #[strum(serialize = "yaml")]
     Yaml,
@@ -477,7 +465,6 @@ pub enum OutputParserFormat {
 impl fmt::Display for OutputParserFormat {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-
             OutputParserFormat::Csv => write!(f, "csv"),
             OutputParserFormat::CsvExtraFin => write!(f, "CsvExtraFin"),
             OutputParserFormat::Yaml => write!(f, "Yaml"),
@@ -486,9 +473,6 @@ impl fmt::Display for OutputParserFormat {
         }
     }
 }
-
-
-
 
 #[derive(Debug)]
 pub struct ParseOutputParserFormatError(String);
@@ -500,14 +484,13 @@ impl std::fmt::Display for ParseOutputParserFormatError {
 }
 impl std::error::Error for ParseOutputParserFormatError {}
 
-
 // impl std::str::FromStr for OutputParserFormat {
 //     type Err = String;
 //     // type Err = String;
 
 //     fn from_str(s: &str) -> Result<OutputParserFormat, String> {
 //         let binding = s.to_lowercase();
-//         let match_string = binding.as_str(); 
+//         let match_string = binding.as_str();
 //         match match_string {
 //             "csv" => Ok(OutputParserFormat::Csv),
 //             "csvextrafin" => Ok(OutputParserFormat::CsvExtraFin),
@@ -521,10 +504,14 @@ impl std::error::Error for ParseOutputParserFormatError {}
 
 impl OutputParserFormat {
     pub fn all_variants() -> &'static [OutputParserFormat] {
-        &[OutputParserFormat::Csv, OutputParserFormat::CsvExtraFin, OutputParserFormat::Yaml, OutputParserFormat::Mt940]
+        &[
+            OutputParserFormat::Csv,
+            OutputParserFormat::CsvExtraFin,
+            OutputParserFormat::Yaml,
+            OutputParserFormat::Mt940,
+        ]
     }
 }
-
 
 // 🔑 The core struct: implements both Read and Write
 pub struct FinConverter {
@@ -545,8 +532,8 @@ impl FinConverter {
         process_output_type: OutputParserFormat,
     ) -> Self {
         Self {
-            process_input_type: process_input_type,
-            process_output_type: process_output_type,
+            process_input_type,
+            process_output_type,
             input_buffer: String::new(),
             flushed: false,
             output_bytes: Vec::new(),
@@ -655,8 +642,6 @@ pub fn parse_input_and_serialize_via_trait<TypeOfBuffInput: Read, TypeOfBuffOutp
 
     // 1️⃣ Read CSV from stdin using Read trait (via copy)
 
-
-   
     std::io::copy(&mut input_buff_reader, &mut converter)?;
 
     // 2️⃣ Flush to trigger parsing (optional — Read will trigger it too)
@@ -667,6 +652,5 @@ pub fn parse_input_and_serialize_via_trait<TypeOfBuffInput: Read, TypeOfBuffOutp
 
     Ok(())
 }
-
 
 mod tests;
