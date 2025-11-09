@@ -232,94 +232,41 @@ impl UniParser {
         let lines = input.lines();
         let data_transactions: Vec<Transaction> = Vec::new();
         let account_data = AccountInto::new(3, "camt053 from str".to_owned());
-        let opened_xml_nodes: Vec<XmlNode> = Vec::new();
-        // let mut current_row = HashMap::new();
-        let mut to_find_account_id = false;
-        let mut xml_cursor_in_comment = false;
 
-        let cur_open_node = XmlNode {
-            tag_name: "test_tag".to_string(),
-            value: "test_tag".to_string(),
-            parent: None,
-        };
+        let mut reader = quick_xml::reader::Reader::from_str(input);
+        reader.config_mut().trim_text(true);
 
-        let mut rc_to_cur_node = Rc::new(RefCell::new(cur_open_node));
 
-        for line in lines {
-            let line = line.trim();
-            if !line.is_empty() {
-                let trimmed = line.trim();
+        let mut count = 0;
+        let mut txt: Vec<String> = Vec::new();
+        let mut buf = Vec::new();
 
-                // Skip one line comment
-                if trimmed.starts_with("<!--") && trimmed.ends_with("-->") {
-                    continue;
-                }
+        // The `Reader` does not implement `Iterator` because it outputs borrowed data (`Cow`s)
+        loop {
+            // NOTE: this is the generic case when we don't know about the input BufRead.
+            // when the input is a &str or a &[u8], we don't actually need to use another
+            // buffer, we could directly call `reader.read_event()`
+            match reader.read_event_into(&mut buf) {
+                Err(e) => panic!("Error at position {}: {:?}", reader.error_position(), e),
+                // exits the loop when reaching end of file
+                Ok(Event::Eof) => break,
 
-                // Skip one comment lines
-                if trimmed.starts_with("<!--") && !trimmed.ends_with("-->") {
-                    xml_cursor_in_comment = true;
-                    continue;
-                } else if !trimmed.starts_with("<!--") && trimmed.ends_with("-->") {
-                    xml_cursor_in_comment = false;
-                    continue;
-                } else if xml_cursor_in_comment {
-                    continue;
-                }
-
-                // xml_cursor_in_comment
-
-                if trimmed.starts_with("<Stmt") && trimmed.ends_with('>') {
-                    to_find_account_id = true;
-                    // current_row.clear();
-                } else if trimmed == "</Stmt>" {
-                    to_find_account_id = false
-                }
-
-                if to_find_account_id {
-                    match find_xml_tag_with_value_in_line(trimmed, &mut rc_to_cur_node) {
-                        Some(xml_node) => {
-                            println!(
-                                "Нашли елемент: {} {}",
-                                &xml_node.borrow().tag_name,
-                                &xml_node.borrow().value
-                            )
-                        }
-                        None => println!("Ничего не нашли"),
+                Ok(Event::Start(e)) => {
+                    match e.name().as_ref() {
+                        b"tag1" => println!("attributes values: {:?}",
+                                            e.attributes().map(|a| a.unwrap().value)
+                                            .collect::<Vec<_>>()),
+                        b"tag2" => count += 1,
+                        _ => (),
                     }
                 }
+                Ok(Event::Text(e)) => txt.push(e.decode().unwrap().into_owned()),
 
-                // if in_record == true {
-
-                // }
-
-                // in_record = false;
-                // if !current_row.is_empty() {
-                //     // Infer headers from first row
-                //     if headers.is_empty() {
-                //         headers = current_row.keys().cloned().collect();
-                //     }
-                //     rows.push(current_row.clone());
-                //     }
-                // } else if in_record
-                //     && trimmed.starts_with('<')
-                //     && trimmed.ends_with('>')
-                //     && !trimmed.starts_with("</")
-                // {
-                //     // Extract tag and content: <name>Alice</name>
-                //     let tag_start = trimmed.find('<').unwrap() + 1;
-                //     let tag_end = trimmed[tag_start..].find('>').unwrap_or(0) + tag_start;
-                //     let tag = &trimmed[tag_start..tag_end];
-
-                //     let content_start = tag_end + 1;
-                //     let content_end = trimmed[content_start..]
-                //         .find('<')
-                //         .unwrap_or(trimmed.len() - content_start)
-                //         + content_start;
-                //     let content = &trimmed[content_start..content_end];
-
-                //     current_row.insert(tag.to_string(), content.to_string());
-                // }
+                // There are several other `Event`s we do not consider here
+                _ => (),
             }
+            // if we don't keep a borrow elsewhere, we can clear the buffer to keep memory usage low
+            buf.clear();
         }
 
         // dbg!(&data_transactions);
@@ -584,6 +531,7 @@ impl FinConverter {
 }
 
 use chardetng::EncodingDetector;
+use quick_xml::events::Event;
 
 fn detect_and_decode(buf: &[u8]) -> String {
     let mut detector = EncodingDetector::new();

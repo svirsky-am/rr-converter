@@ -16,6 +16,11 @@ run-fix-lint-for-lib:
 run-test-of-bin:
 	cargo test -p rr-file-processor
 
+.PHONY: sandbox-env
+sandbox-env:
+	cargo run -p sandbox_env
+
+
 .PHONY: build-and-exec-args-mode
 build-and-exec-args-mode: run-test-of-libs
 	cargo build -p rr-file-processor
