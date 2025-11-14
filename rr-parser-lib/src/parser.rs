@@ -1,46 +1,80 @@
-use std::cell::RefCell;
-
+// use roxmltree::Document;
+use serde::Serialize;
 // use std::io;
 use std::io::{self, Read, Write};
 
 use std::fmt;
+use std::path::PathBuf;
+mod common;
+mod sup_camp053;
+mod sup_extra_fin_csv;
+mod sup_mt940;
+mod render;
+use common::{Balance, Transaction};
 
-use std::rc::Rc;
+
 
 // In-memory parsed CSV
 #[derive(Debug, Default)]
 struct UniParser {
     headers: Vec<String>,
     rows: Vec<Vec<String>>,
+    log_dir: PathBuf,
 }
 
-#[derive(Hash, PartialEq, Eq, Debug)]
-struct Transaction {
-    country: &'static str,
-    id: u32,
-}
+// #[derive(Hash, PartialEq, Eq, Debug)]
+// struct Transaction {
+//     country: &'static str,
+//     id: u32,
+// }
+// use roxmltree::{Document, Node}
 
-#[derive(Hash, PartialEq, Eq, Debug)]
-struct AccountInto {
+// #[derive(Serialize, Debug, Clone)]
+#[derive(PartialEq, Debug, Clone, Serialize)]
+struct Wallet {
     description: String,
-    id: u32,
-    transactions: Vec<Transaction>,
+    id: u128,
+    // transactions: Vec<Transaction>,
     currency: String,
+    pub account: String,
+    pub statement_id: String,
+    pub creation_time: Option<String>, // Only in CAMT
+    pub opening_balance: Option<Balance>,
+    pub closing_balance: Option<Balance>,
+    pub transactions: Vec<Transaction>,
 }
 
-impl Default for AccountInto {
+impl Default for Wallet {
     fn default() -> Self {
-        AccountInto {
-            id: 5,
+        Wallet {
+            id: 0,
             description: String::new(),
             transactions: Vec::new(),
             currency: String::new(),
+            account: String::new(),
+            statement_id: String::new(),
+            creation_time: Some(String::new()),
+            opening_balance: Some(Balance { amount: 0.0,
+                currency: "default_currency".to_owned(),
+                credit_debit: common::BalanceAdjustType::WithoutInfo,
+                date: "default_credit_debit".to_owned(),
+                country: "default_credit_debit".to_owned(),
+                last_ops: Vec::new()
+             }),
+            closing_balance: Some(Balance { amount: 0.0,
+                currency: "default_currency".to_owned(),
+                credit_debit: common::BalanceAdjustType::WithoutInfo,
+                date: "default_credit_debit".to_owned(),
+                country: "default_credit_debit".to_owned(),  
+                last_ops: Vec::new() 
+            }),
+
         }
     }
 }
 
-impl AccountInto {
-    pub fn new(id: u32, description: String) -> Self {
+impl Wallet {
+    pub fn new(id: u128, description: String) -> Self {
         Self {
             id,
             description,
@@ -48,244 +82,111 @@ impl AccountInto {
         }
     }
 
-    fn render_content_as_csv(&mut self) -> Vec<u8> {
-        let mut result_content = String::from("---\n");
 
-        result_content.push_str(&format!("account_info: {:#?}\n", self));
-        // let mut result_content: Vec<u8> = format!("result_content: {}\n", self)
-        // ;
-        result_content.as_bytes().to_vec()
+
+    fn make_debug_as_yaml(&self) -> Wallet  {
+        // let mut result_content = String::from("---\n");
+
+        // result_content.push_str(&format!("account_info: {:#?}\n", self));
+        // // let mut result_content: Vec<u8> = format!("result_content: {}\n", self)
+        // // ;
+        // result_content.as_bytes().to_vec()
+
+        let opening_balance = Balance { amount: 0.0,
+            currency: "currency".to_owned(),
+            credit_debit: common::BalanceAdjustType::Credit,
+            date: "credit_debit".to_owned(),
+            country: "credit_debit".to_owned(),
+            last_ops: Vec::new()};
+        let closing_balance = Balance { amount: 0.0,
+            currency: "currency".to_owned(),
+            credit_debit: common::BalanceAdjustType::Credit,
+            date: "credit_debit".to_owned(),
+            country: "credit_debit".to_owned(),
+            last_ops: Vec::new()};
+        // let transactions = Vec::new();
+        Wallet::default()
+
     }
 
-    fn render_content_as_csv_extra_fin(&mut self) -> Vec<u8> {
-        let mut result_content = String::from("---\n");
 
-        result_content.push_str(&format!("account_info: {:#?}\n", self));
-        // let mut result_content: Vec<u8> = format!("result_content: {}\n", self)
-        // ;
-        result_content.as_bytes().to_vec()
-    }
-
-    fn render_content_as_yaml(&mut self) -> Vec<u8> {
-        let mut result_content = String::from("---\n");
-
-        result_content.push_str(&format!("account_info: {:#?}\n", self));
-        // let mut result_content: Vec<u8> = format!("result_content: {}\n", self)
-        // ;
-        result_content.as_bytes().to_vec()
-    }
-
-    fn render_content_as_camt053(&mut self) -> Vec<u8> {
-        let mut result_content = String::from("---\n");
-
-        result_content.push_str(&format!("account_info: {:#?}\n", self));
-        // let mut result_content: Vec<u8> = format!("result_content: {}\n", self)
-        // ;
-        result_content.as_bytes().to_vec()
-    }
-
-    fn render_content_as_mt940(&mut self) -> Vec<u8> {
-        let mut result_content = String::from("---\n");
-
-        result_content.push_str(&format!("account_info: {:#?}\n", self));
-        // let mut result_content: Vec<u8> = format!("result_content: {}\n", self)
-        // ;
-        result_content.as_bytes().to_vec()
-    }
-}
-#[derive(Debug)]
-struct XmlNode {
-    tag_name: String,
-    value: String,
-    parent: Option<Rc<RefCell<XmlNode>>>,
-}
-
-fn find_xml_xml_tag_with_value_in_line(trimed_line: &str) -> Option<Rc<RefCell<XmlNode>>> {
-    let tag_start = trimed_line.find('<').unwrap() + 1;
-    let tag_end = trimed_line[tag_start..].find('>').unwrap_or(0) + tag_start;
-    let tag = &trimed_line[tag_start..tag_end];
-    let content_start = tag_end + 1;
-    let content_end = trimed_line[content_start..]
-        .find('<')
-        .unwrap_or(trimed_line.len() - content_start)
-        + content_start;
-    let content: &str = &trimed_line[content_start..content_end];
-    let result_node: Rc<RefCell<XmlNode>> = Rc::new(RefCell::new(XmlNode {
-        tag_name: tag.to_owned(),
-        value: content.to_owned(),
-        parent: None,
-    }));
-    if !content.is_empty() {
-        Some(result_node)
-    } else {
-        None
-    }
-}
-
-fn find_open_tag(trimed_line: &str) -> Option<Rc<RefCell<XmlNode>>> {
-    let tag_start = trimed_line.find('<').unwrap() + 1;
-    let tag_end = trimed_line[tag_start..].find('>').unwrap_or(0) + tag_start;
-    let tag = &trimed_line[tag_start..tag_end];
-    let content_start = tag_end + 1;
-    let content_end = trimed_line[content_start..]
-        .find('<')
-        .unwrap_or(trimed_line.len() - content_start)
-        + content_start;
-    let content: &str = &trimed_line[content_start..content_end];
-    let result_node: Rc<RefCell<XmlNode>> = Rc::new(RefCell::new(XmlNode {
-        tag_name: tag.to_owned(),
-        value: content.to_owned(),
-        parent: None,
-    }));
-    if !content.is_empty() {
-        Some(result_node)
-    } else {
-        None
-    }
-}
-
-fn find_xml_tag_with_value_in_line(
-    trimed_line: &str,
-    parent_node: &Rc<RefCell<XmlNode>>,
-) -> Option<Rc<RefCell<XmlNode>>> {
-    let tag_start = trimed_line.find('<').unwrap() + 1;
-    let tag_end = trimed_line[tag_start..].find('>').unwrap_or(0) + tag_start;
-    let tag = &trimed_line[tag_start..tag_end];
-    let content_start = tag_end + 1;
-    let content_end = trimed_line[content_start..]
-        .find('<')
-        .unwrap_or(trimed_line.len() - content_start)
-        + content_start;
-    let content: &str = &trimed_line[content_start..content_end];
-    let result_node: Rc<RefCell<XmlNode>> = Rc::new(RefCell::new(XmlNode {
-        tag_name: tag.to_owned(),
-        value: content.to_owned(),
-        parent: Some(Rc::clone(parent_node)),
-    }));
-    if !content.is_empty() {
-        Some(result_node)
-    } else {
-        None
-    }
+ 
 }
 
 impl UniParser {
-    fn parse_csv_from_str(&mut self, input: &str) -> AccountInto {
+    fn parse_csv_from_str(&mut self, input: &str) -> anyhow::Result<Vec<Wallet>> {
+        dbg!(&input);
         let mut lines = input.lines();
         if let Some(header) = lines.next() {
             self.headers = header.split(',').map(|s| s.trim().to_string()).collect();
         }
 
         let mut data_transactions: Vec<Transaction> = Vec::new();
-        let account_data = AccountInto::new(5, "csv from str".to_owned());
+        let account_data = Wallet::new(5, "csv from str".to_owned());
 
-        for line in lines {
-            let line = line.trim();
-            if !line.is_empty() {
-                let _split_string = &line.split(',').map(|s| s.trim().to_string());
-                self.rows
-                    .push(line.split(',').map(|s| s.trim().to_string()).collect());
 
-                // data_transactions.append(other);
 
-                data_transactions.push(Transaction {
-                    country: "ru",
-                    id: 1,
-                });
-            }
-        }
-
-        // dbg!(&data_transactions);
-        account_data
+        // let mut output: Vec<Wallet> = Vec::new();
+        // output.push(account_data);
+        // 
+        let output = vec![account_data] ;
+        Ok(output)
     }
 
-    fn parse_csv_extra_fin_from_str(&mut self, input: &str) -> AccountInto {
-        let mut lines = input.lines();
-        if let Some(header) = lines.next() {
-            self.headers = header.split(',').map(|s| s.trim().to_string()).collect();
+    fn parse_csv_extra_fin_from_str(&mut self, input: &str) -> anyhow::Result<Vec<Wallet>> {
+
+
+        let parts: Vec<&str> = input.split(",,,,,,,,,,,,,,,,,,,,,,\n").collect();
+
+
+        for cap in parts.iter() {
+            let body = &cap;
+            // dbg!(&body);
         }
 
-        let mut data_transactions: Vec<Transaction> = Vec::new();
-        let account_data = AccountInto::new(7, "csv from str".to_owned());
+        let sratemnts_header = parts[1];
+        // dbg!(sratemnts_header);
+        let bracked_csv = parts[2];
+        // dbg!(bracked_csv);
 
-        for line in lines {
-            let line = line.trim();
-            if !line.is_empty() {
-                let _split_string = &line.split(',').map(|s| s.trim().to_string());
-                self.rows
-                    .push(line.split(',').map(|s| s.trim().to_string()).collect());
+        let output_dbg_sratemnts_header = self.log_dir.join(format!("{}_extra_csv_sratemnts_header.txt", gen_time_prefix_to_filename()));
+        std::fs::create_dir_all(&self.log_dir).unwrap();
+        let mut file_dbg_sratemnts_header = std::fs::File::create(output_dbg_sratemnts_header).unwrap();
+        file_dbg_sratemnts_header.write_all(sratemnts_header.as_bytes());
 
-                // data_transactions.append(other);
-
-                data_transactions.push(Transaction {
-                    country: "ru",
-                    id: 1,
-                });
-            }
-        }
-
-        // dbg!(&data_transactions);
-        account_data
-    }
-
-    fn parse_camt053_from_str(&mut self, input: &str) -> AccountInto {
-        let lines = input.lines();
-        let data_transactions: Vec<Transaction> = Vec::new();
-        let account_data = AccountInto::new(3, "camt053 from str".to_owned());
-
-        let mut reader = quick_xml::reader::Reader::from_str(input);
-        reader.config_mut().trim_text(true);
+        let output_dbg_bracked_csv = self.log_dir.join(format!("{}_extra_csv_bracked.csv", gen_time_prefix_to_filename()));
+        let mut file_dbg_bracked_csv = std::fs::File::create(output_dbg_bracked_csv).unwrap();
+        file_dbg_bracked_csv.write_all(bracked_csv.as_bytes());
 
 
-        let mut count = 0;
-        let mut txt: Vec<String> = Vec::new();
-        let mut buf = Vec::new();
+        let normalyzed_csv_str = sup_extra_fin_csv::normalyze_csv_str(bracked_csv.to_owned());
+        // dbg!(&normalyzed_csv_str);
+        let output_normalyzed_csv = self.log_dir.join(format!("{}_normalyzed.csv", gen_time_prefix_to_filename()));
+        let mut file_output_normalyzed_csv = std::fs::File::create(output_normalyzed_csv).unwrap();
+        file_output_normalyzed_csv.write_all(normalyzed_csv_str.as_bytes());
 
-        // The `Reader` does not implement `Iterator` because it outputs borrowed data (`Cow`s)
-        loop {
-            // NOTE: this is the generic case when we don't know about the input BufRead.
-            // when the input is a &str or a &[u8], we don't actually need to use another
-            // buffer, we could directly call `reader.read_event()`
-            match reader.read_event_into(&mut buf) {
-                Err(e) => panic!("Error at position {}: {:?}", reader.error_position(), e),
-                // exits the loop when reaching end of file
-                Ok(Event::Eof) => break,
+        let mut transactions  = sup_extra_fin_csv::parsr_csv_str(normalyzed_csv_str.to_owned())?;
 
-                Ok(Event::Start(e)) => {
-                    match e.name().as_ref() {
-                        b"tag1" => println!("attributes values: {:?}",
-                                            e.attributes().map(|a| a.unwrap().value)
-                                            .collect::<Vec<_>>()),
-                        b"tag2" => count += 1,
-                        _ => (),
-                    }
-                }
-                Ok(Event::Text(e)) => txt.push(e.decode().unwrap().into_owned()),
 
-                // There are several other `Event`s we do not consider here
-                _ => (),
-            }
-            // if we don't keep a borrow elsewhere, we can clear the buffer to keep memory usage low
-            buf.clear();
-        }
-
-        // dbg!(&data_transactions);
-        account_data
-    }
-
-    fn parse_mt940_from_str(&mut self, input: &str) -> AccountInto {
-        let mut lines = input.lines();
-
-        if let Some(header) = lines.next() {
-            self.headers = header.split(',').map(|s| s.trim().to_string()).collect();
-        }
-
-        // if let Some(header) = lines.next() {
-        //     self.headers = header.split(',').map(|s| s.trim().to_string()).collect();
+        // let re_msg_all = Regex::new(r"[\[\(\{]1\:(.*)\}\{2\:(.*)\}\{3:[^}]*\}\{4:\n?([:\w\n\d\/, ]*)").unwrap();
+        // let re_msg_all = regex::Regex::new(r",,,,,,,,,,,,,,,,,,,,,,\n([.\n]*)\d").unwrap();
+        // for cap in re_msg_all.captures_iter(input) {
+        //     let body = &cap[0];
+        //     dbg!(&body);
+        //     // dbg!( &body);
+        //     let mut fields: Vec<(&str, String)> = Vec::new();
         // }
 
-        // let mut data_transactions: Vec<Transaction> = Vec::new();
-        // let account_data = AccountInto::new(6, "csv from str".to_owned());
+
+
+        let mut lines = input.lines();
+        if let Some(header) = lines.next() {
+            self.headers = header.split(',').map(|s| s.trim().to_string()).collect();
+        }
+
+        let mut data_transactions: Vec<Transaction> = Vec::new();
+        let mut account_data = Wallet::new(7, "csv from str".to_owned());
+        account_data.transactions = transactions;
 
         // for line in lines {
         //     let line = line.trim();
@@ -296,15 +197,165 @@ impl UniParser {
 
         //         // data_transactions.append(other);
 
-        //         data_transactions.push(Transaction {
-        //             country: "ru",
-        //             id: 1,
-        //         });
+        //         // data_transactions.push(Transaction {
+        //         //     // country: "ru",
+        //         //     amount: 0.0f64,
+                    
+        //         //     id: 1,
+        //         //     date: "value_date".to_owned(),
+        //         //     // amount: todo!(),
+        //         //     currency: "todo!()".to_owned(),
+        //         //     credit_debit: "todo!()".to_owned(),
+        //         //     narrative: Vec::new(),
+        //         // });
         //     }
         // }
 
+        let output = vec![account_data] ;
+        Ok(output)
+    }
+
+    fn parse_camt053_from_str(&mut self, input: &str) -> anyhow::Result<Vec<Wallet>> {
+        const NS: &str = "urn:iso:std:iso:20022:tech:xsd:camt.053.001.02";
+        use roxmltree::Document;
+        use sup_camp053::{get_text, find_nested_text};
+
+        use anyhow::{Context};
+        // let content = input;
+        let doc = Document::parse(input).unwrap();
+        let root = doc.root_element();
+
+        let bk_to_cstmr_stmt = root.children()
+            .find(|n| n.has_tag_name((NS, "BkToCstmrStmt")))
+            .context("Missing BkToCstmrStmt")?;
+
+        let grp_hdr = bk_to_cstmr_stmt.children()
+            .find(|n| n.has_tag_name((NS, "GrpHdr")))
+            .context("Missing GrpHdr")?;
+        let msg_id = get_text(grp_hdr, (NS, "MsgId"));
+        let cre_dt_tm = get_text(grp_hdr, (NS, "CreDtTm"));
+
+        let stmt = bk_to_cstmr_stmt.children()
+            .find(|n| n.has_tag_name((NS, "Stmt")))
+            .context("Missing Stmt")?;
+
+        let acct = stmt.children()
+            .find(|n| n.has_tag_name((NS, "Acct")))
+            .context("Missing Acct")?;
+        let iban = find_nested_text(acct, &[(NS, "Id"), (NS, "IBAN")]);
+        let currency = get_text(acct, (NS, "Ccy"));
+        let account = if iban.is_empty() { "UNKNOWN".to_string() } else { iban };
+
+        let id: u128 = 0;
+        
+        // Balances
+        let mut balances = Vec::new();
+        // let last_ops_vec: Vec<common::OpKind> = Vec::new();
+        // let last_ops = last_ops_vec.to_owned();
+        for bal in stmt.children().filter(|n| n.has_tag_name((NS, "Bal"))) {
+            let code = find_nested_text(bal, &[(NS, "Tp"), (NS, "CdOrPrtry"), (NS, "Cd")]);
+            let amt_node = bal.children().find(|n| n.has_tag_name((NS, "Amt")))
+                .context("Balance missing Amt")?;
+            let amount: f64 = amt_node.text().unwrap_or("0").parse().unwrap_or(0.0);
+            let amt_ccy = amt_node.attribute("Ccy").unwrap_or(&currency).to_string();
+            let credit_debit = match get_text(bal, (NS, "CdtDbtInd")).as_str() {
+                "CRDT" => common::BalanceAdjustType::Credit,
+                "DBIT" => common::BalanceAdjustType::Debit,
+                _ => common::BalanceAdjustType::Debit, // or consider logging/warning for unexpected values
+            };
+
+            let date = find_nested_text(bal, &[(NS, "Dt"), (NS, "Dt")]);
+            let country: String= "en".to_string();
+            balances.push((code, Balance {
+                amount,
+                currency: amt_ccy,
+                credit_debit,
+                date,
+                country,
+                last_ops: Vec::new()
+            }));
+        }
+
+        let opening_balance = balances.iter().find(|(code, _)| code == "OPBD").map(|(_, b)| b.clone());
+        let closing_balance = balances.iter().find(|(code, _)| code == "CLBD").map(|(_, b)| b.clone());
+
+        // Transactions
+        let mut transactions = Vec::new();
+        for ntry in stmt.children().filter(|n| n.has_tag_name((NS, "Ntry"))) {
+            let amt_node = ntry.children().find(|n| n.has_tag_name((NS, "Amt")))
+                .context("Entry missing Amt")?;
+            let amount: f64 = amt_node.text().unwrap_or("0").parse().unwrap_or(0.0);
+            let currency = amt_node.attribute("Ccy").unwrap_or("").to_string();
+            let currency = if currency.is_empty() { currency.clone() } else { currency };
+            let credit_debit = match get_text(ntry, (NS, "CdtDbtInd")).as_str(){
+                "DBIT" => common::BalanceAdjustType::Debit,
+                "CRDT" => common::BalanceAdjustType::Credit,
+                _ => common::BalanceAdjustType::WithoutInfo 
+            };
+            let date = find_nested_text(ntry, &[(NS, "ValDt"), (NS, "Dt")]);
+
+
+            let debit_account: String = "TODO debit_account".to_string();
+            let credit_account: String = "TODO credit_account".to_string();
+            let target_bank: String = "TODO target bank".to_string();
+            let purpose = "TODO target bank".to_string();
+            // AddtlTxInf
+
+
+            let mut narratives = Vec::new();
+            if let Some(rmt) = ntry.children().find(|n| n.has_tag_name((NS, "RmtInf"))) {
+                for ustrd in rmt.children().filter(|n| n.has_tag_name((NS, "Ustrd"))) {
+                    if let Some(text) = ustrd.text() {
+                        narratives.push(text.trim().to_string());
+                    }
+                }
+            }
+            
+            transactions.push(Transaction {
+                id,
+                // &&country,
+
+                credit_account,
+                debit_account,
+                date,
+                amount,
+                currency: currency.clone(),
+                credit_debit,
+                // narrative: narratives,
+                target_bank,
+                purpose,
+                transaction_type: None
+            });
+        }
+        let id: u128 = 0;
+        let description: String = "0".to_owned();
+        let output = vec![Wallet {
+            id,
+            description,
+            account,
+            currency,
+            statement_id: msg_id,
+            creation_time: Some(cre_dt_tm),
+            opening_balance,
+            closing_balance,
+            transactions,
+        }] ;
+        Ok(output)
+        // Ok()
         // dbg!(&data_transactions);
-        AccountInto::new(6, "csv from str".to_owned())
+        // account_data
+    }
+
+    fn parse_mt940_from_str(&mut self, input: &str) -> anyhow::Result<Vec<Wallet>> {
+        // let mut lines = input.lines();
+
+        // if let Some(header) = lines.next() {
+        //     self.headers = header.split(',').map(|s| s.trim().to_string()).collect();
+        // }
+
+        // let output = vec![Wallet::new(6, "csv from str".to_owned())];
+        let output = sup_mt940::parse_mt940_alt(input);
+        Ok(output?)
     }
 
     fn to_yaml_bytes(&self) -> Vec<u8> {
@@ -332,7 +383,7 @@ impl UniParser {
         yaml.into_bytes()
     }
 
-    fn account_to_yaml_bytes(&self, account_data: AccountInto) -> Vec<u8> {
+    fn account_to_yaml_bytes(&self, account_data: Wallet) -> Vec<u8> {
         // if self.headers.is_empty() {
         //     return Vec::new();
         // }
@@ -347,9 +398,9 @@ impl UniParser {
 
 #[derive(Debug, Clone)]
 pub enum InputParserFormat {
-    Csv,
+    // Csv,
     CsvExtraFin,
-    Xml,
+    // Xml,
     Camt053,
     Mt940,
 }
@@ -357,11 +408,11 @@ pub enum InputParserFormat {
 impl fmt::Display for InputParserFormat {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            InputParserFormat::Csv => write!(f, "csv"),
-            InputParserFormat::CsvExtraFin => write!(f, "CsvExtraFin♦"),
-            InputParserFormat::Xml => write!(f, "Xml"),
-            InputParserFormat::Mt940 => write!(f, "Mt940♣"),
-            InputParserFormat::Camt053 => write!(f, "Camt053♥"),
+            // InputParserFormat::Csv => write!(f, "csv"),
+            InputParserFormat::CsvExtraFin => write!(f, "csv_extra_fin"),
+            // InputParserFormat::Xml => write!(f, "Xml"),
+            InputParserFormat::Mt940 => write!(f, "mt_940"),
+            InputParserFormat::Camt053 => write!(f, "camt_053"),
         }
     }
 }
@@ -371,13 +422,13 @@ impl std::str::FromStr for InputParserFormat {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "csv" => Ok(InputParserFormat::Csv),
-            "csvextrafin" => Ok(InputParserFormat::CsvExtraFin),
-            "xml" => Ok(InputParserFormat::Xml),
-            "camt053" => Ok(InputParserFormat::Camt053),
-            "mt940" => Ok(InputParserFormat::Mt940),
+            // "csv" => Ok(InputParserFormat::Csv),
+            "csv_extra_fin" => Ok(InputParserFormat::CsvExtraFin),
+            // "xml" => Ok(InputParserFormat::Xml),
+            "camt_053" => Ok(InputParserFormat::Camt053),
+            "mt_940" => Ok(InputParserFormat::Mt940),
             _ => Err(format!(
-                "Unsupported format: {}. Supported: csv, xml, camt053, mt940",
+                "Unsupported format: {}. Supported: csv_extra_fin, camt_053, mt_940",
                 s
             )),
         }
@@ -387,36 +438,37 @@ impl std::str::FromStr for InputParserFormat {
 impl InputParserFormat {
     pub fn all_variants() -> &'static [InputParserFormat] {
         &[
-            InputParserFormat::Csv,
+            // InputParserFormat::Csv,
             InputParserFormat::CsvExtraFin,
-            InputParserFormat::Xml,
+            // InputParserFormat::Xml,
             InputParserFormat::Mt940,
+            InputParserFormat::Camt053
         ]
     }
 }
 
 #[derive(Debug, Clone, strum_macros::EnumString)]
 pub enum OutputParserFormat {
-    #[strum(serialize = "csv")]
-    Csv,
-    #[strum(serialize = "csvextrafin", serialize = "csv_extra_fin")]
+    // #[strum(serialize = "csv")]
+    // Csv,
+    #[strum(serialize = "csv_extra_fin", serialize = "CsvExtraFin")]
     CsvExtraFin,
     #[strum(serialize = "yaml")]
     Yaml,
     // Xml,
-    #[strum(serialize = "camt053")]
+    #[strum(serialize = "camt_053")]
     Camt053,
-    #[strum(serialize = "mt940")]
+    #[strum(serialize = "mt_940")]
     Mt940,
 }
 impl fmt::Display for OutputParserFormat {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            OutputParserFormat::Csv => write!(f, "csv"),
-            OutputParserFormat::CsvExtraFin => write!(f, "CsvExtraFin"),
-            OutputParserFormat::Yaml => write!(f, "Yaml"),
-            OutputParserFormat::Mt940 => write!(f, "Mt940"),
-            OutputParserFormat::Camt053 => write!(f, "Camt053"),
+            // OutputParserFormat::Csv => write!(f, "csv"),
+            OutputParserFormat::CsvExtraFin => write!(f, "csv_extra_fin"),
+            OutputParserFormat::Yaml => write!(f, "yaml"),
+            OutputParserFormat::Mt940 => write!(f, "mt_940"),
+            OutputParserFormat::Camt053 => write!(f, "camt_053"),
         }
     }
 }
@@ -452,10 +504,11 @@ impl std::error::Error for ParseOutputParserFormatError {}
 impl OutputParserFormat {
     pub fn all_variants() -> &'static [OutputParserFormat] {
         &[
-            OutputParserFormat::Csv,
+            // OutputParserFormat::Csv,
             OutputParserFormat::CsvExtraFin,
             OutputParserFormat::Yaml,
             OutputParserFormat::Mt940,
+            OutputParserFormat::Camt053,
         ]
     }
 }
@@ -471,6 +524,7 @@ pub struct FinConverter {
     // Output state (for Read)
     output_bytes: Vec<u8>,
     read_pos: usize,
+    log_dir: std::path::PathBuf
 }
 
 impl FinConverter {
@@ -485,6 +539,7 @@ impl FinConverter {
             flushed: false,
             output_bytes: Vec::new(),
             read_pos: 0,
+            log_dir: std::path::PathBuf::from("output"),
         }
     }
 
@@ -494,26 +549,55 @@ impl FinConverter {
             return;
         }
 
-        let mut parser = UniParser::default();
-        let mut parsed_account_data = match self.process_input_type {
-            InputParserFormat::Csv => parser.parse_csv_from_str(&self.input_buffer),
+        let mut parser: UniParser = UniParser::default();
+        parser.log_dir = self.log_dir.clone();
+        let result_statement_data  = match self.process_input_type {
+            // InputParserFormat::Csv => parser.parse_csv_from_str(&self.input_buffer),
             InputParserFormat::CsvExtraFin => {
                 parser.parse_csv_extra_fin_from_str(&self.input_buffer)
             }
-            InputParserFormat::Xml => parser.parse_csv_from_str(&self.input_buffer),
+            // InputParserFormat::Xml => parser.parse_csv_from_str(&self.input_buffer),
             InputParserFormat::Camt053 => parser.parse_camt053_from_str(&self.input_buffer),
             InputParserFormat::Mt940 => parser.parse_mt940_from_str(&self.input_buffer),
         };
 
+        // let parsed_account_data = Box::new(result_statement_data.unwrap());
+        let parsed_account_data = result_statement_data.unwrap();
+        // let todo_clone_parsed_account_data = parsed_account_data.clone();
+        // let log_dir = std::path::Path::new("output");
+        // for mut cash_statement_data in todo_clone_parsed_account_data {
+        let mut iter_count = 0;
+        let mut report_string: String = serde_yaml::to_string(&parsed_account_data).unwrap();
+        // for cash_statement_data in &parsed_account_data {
+        //     // let debug_data: Wallet = cash_statement_data.make_debug_as_yaml();
+        //     // report_string += &serde_yaml::to_string(&cash_statement_data).unwrap().to_owned();
+        //     dbg(cash_statement_data);
+        //     // iter_count += 1;
+        // }
+
+
+        let gen_output_name = format!("from_{}_to_{}_{}.yaml", self.process_input_type, self.process_output_type, gen_time_prefix_to_filename());
+        let output_path = self.log_dir.join(gen_output_name);
+        
+        dbg!(&output_path);
+        std::fs::create_dir_all(&self.log_dir).unwrap();
+        let mut file = std::fs::File::create(output_path).unwrap();
+        file.write_all(report_string.as_bytes());
+
+
+        // std::fs::write(&output_path, yaml_string)
+        //     .with_context(|| format!("Failed to write YAML: {}", output_path))?;
+
+
         // self.output_bytes = parser.account_to_yaml_bytes(account_data);
         let rendered_result = match self.process_output_type {
-            OutputParserFormat::Csv => parsed_account_data.render_content_as_csv(),
+            // OutputParserFormat::Csv => render::render_content_as_csv(parsed_account_data),
             OutputParserFormat::CsvExtraFin => {
-                parsed_account_data.render_content_as_csv_extra_fin()
+                render::render_content_as_csv_extra_fin(parsed_account_data)
             }
-            OutputParserFormat::Yaml => parsed_account_data.render_content_as_yaml(),
-            OutputParserFormat::Camt053 => parsed_account_data.render_content_as_camt053(),
-            OutputParserFormat::Mt940 => parsed_account_data.render_content_as_mt940(),
+            OutputParserFormat::Yaml => render::render_content_as_yaml(parsed_account_data),
+            OutputParserFormat::Camt053 => render::render_content_as_camt053(parsed_account_data),
+            OutputParserFormat::Mt940 => render::render_content_as_mt940(parsed_account_data),
         };
 
         self.output_bytes = rendered_result;
@@ -531,7 +615,9 @@ impl FinConverter {
 }
 
 use chardetng::EncodingDetector;
-use quick_xml::events::Event;
+
+use crate::parser::common::gen_time_prefix_to_filename;
+// use quick_xml::events::Event;
 
 fn detect_and_decode(buf: &[u8]) -> String {
     let mut detector = EncodingDetector::new();

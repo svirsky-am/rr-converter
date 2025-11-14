@@ -1,3 +1,6 @@
 [workspace]
-members = ["rr-parser-lib", "rr-file-processor", "sandbox_env", ]
+members = ["rr-parser-lib",
+    "rr-file-processor", 
+#    "sandbox_env", 
+]
 resolver = "2"
