@@ -4,6 +4,9 @@ use std::cell::RefCell;
 use std::io::{self, Read, Write};
 
 use std::fmt;
+mod common;
+use common::{Balance, Transaction, StatementData};
+
 
 use std::rc::Rc;
 
@@ -14,11 +17,11 @@ struct UniParser {
     rows: Vec<Vec<String>>,
 }
 
-#[derive(Hash, PartialEq, Eq, Debug)]
-struct Transaction {
-    country: &'static str,
-    id: u32,
-}
+// #[derive(Hash, PartialEq, Eq, Debug)]
+// struct Transaction {
+//     country: &'static str,
+//     id: u32,
+// }
 
 #[derive(Hash, PartialEq, Eq, Debug)]
 struct AccountInto {
@@ -66,6 +69,37 @@ impl AccountInto {
         result_content.as_bytes().to_vec()
     }
 
+    fn make_debug_as_yaml(&mut self) -> StatementData  {
+        // let mut result_content = String::from("---\n");
+
+        // result_content.push_str(&format!("account_info: {:#?}\n", self));
+        // // let mut result_content: Vec<u8> = format!("result_content: {}\n", self)
+        // // ;
+        // result_content.as_bytes().to_vec()
+
+        let opening_balance = Balance { amount: 0.0,
+            currency: "currency".to_owned(),
+            credit_debit: "credit_debit".to_owned(),
+            date: "credit_debit".to_owned(),
+            country: "credit_debit".to_owned() };
+        let closing_balance = Balance { amount: 0.0,
+            currency: "currency".to_owned(),
+            credit_debit: "credit_debit".to_owned(),
+            date: "credit_debit".to_owned(),
+            country: "credit_debit".to_owned() };
+        let mut transactions = Vec::new();
+        StatementData {
+            account: "to_do account".to_owned(),
+            currency: "to_do currency".to_owned(),
+            statement_id: "to_do currency".to_owned(),
+            creation_time: Some("to_do currency".to_owned()),
+            opening_balance: Some(opening_balance),
+            closing_balance: Some(closing_balance),
+            transactions
+        }
+    }
+
+
     fn render_content_as_yaml(&mut self) -> Vec<u8> {
         let mut result_content = String::from("---\n");
 
@@ -93,81 +127,6 @@ impl AccountInto {
         result_content.as_bytes().to_vec()
     }
 }
-#[derive(Debug)]
-struct XmlNode {
-    tag_name: String,
-    value: String,
-    parent: Option<Rc<RefCell<XmlNode>>>,
-}
-
-fn find_xml_xml_tag_with_value_in_line(trimed_line: &str) -> Option<Rc<RefCell<XmlNode>>> {
-    let tag_start = trimed_line.find('<').unwrap() + 1;
-    let tag_end = trimed_line[tag_start..].find('>').unwrap_or(0) + tag_start;
-    let tag = &trimed_line[tag_start..tag_end];
-    let content_start = tag_end + 1;
-    let content_end = trimed_line[content_start..]
-        .find('<')
-        .unwrap_or(trimed_line.len() - content_start)
-        + content_start;
-    let content: &str = &trimed_line[content_start..content_end];
-    let result_node: Rc<RefCell<XmlNode>> = Rc::new(RefCell::new(XmlNode {
-        tag_name: tag.to_owned(),
-        value: content.to_owned(),
-        parent: None,
-    }));
-    if !content.is_empty() {
-        Some(result_node)
-    } else {
-        None
-    }
-}
-
-fn find_open_tag(trimed_line: &str) -> Option<Rc<RefCell<XmlNode>>> {
-    let tag_start = trimed_line.find('<').unwrap() + 1;
-    let tag_end = trimed_line[tag_start..].find('>').unwrap_or(0) + tag_start;
-    let tag = &trimed_line[tag_start..tag_end];
-    let content_start = tag_end + 1;
-    let content_end = trimed_line[content_start..]
-        .find('<')
-        .unwrap_or(trimed_line.len() - content_start)
-        + content_start;
-    let content: &str = &trimed_line[content_start..content_end];
-    let result_node: Rc<RefCell<XmlNode>> = Rc::new(RefCell::new(XmlNode {
-        tag_name: tag.to_owned(),
-        value: content.to_owned(),
-        parent: None,
-    }));
-    if !content.is_empty() {
-        Some(result_node)
-    } else {
-        None
-    }
-}
-
-fn find_xml_tag_with_value_in_line(
-    trimed_line: &str,
-    parent_node: &Rc<RefCell<XmlNode>>,
-) -> Option<Rc<RefCell<XmlNode>>> {
-    let tag_start = trimed_line.find('<').unwrap() + 1;
-    let tag_end = trimed_line[tag_start..].find('>').unwrap_or(0) + tag_start;
-    let tag = &trimed_line[tag_start..tag_end];
-    let content_start = tag_end + 1;
-    let content_end = trimed_line[content_start..]
-        .find('<')
-        .unwrap_or(trimed_line.len() - content_start)
-        + content_start;
-    let content: &str = &trimed_line[content_start..content_end];
-    let result_node: Rc<RefCell<XmlNode>> = Rc::new(RefCell::new(XmlNode {
-        tag_name: tag.to_owned(),
-        value: content.to_owned(),
-        parent: Some(Rc::clone(parent_node)),
-    }));
-    if !content.is_empty() {
-        Some(result_node)
-    } else {
-        None
-    }
-}
 
 impl UniParser {
     fn parse_csv_from_str(&mut self, input: &str) -> AccountInto {
@@ -191,6 +150,12 @@ impl UniParser {
                 data_transactions.push(Transaction {
                     country: "ru",
                     id: 1,
+                    value_date: todo!(),
+                    // amount: 0.0,
+                    currency: todo!(),
+                    credit_debit: todo!(),
+                    narrative: todo!(),
+                    
                 });
             }
         }
@@ -220,6 +185,11 @@ impl UniParser {
                 data_transactions.push(Transaction {
                     country: "ru",
                     id: 1,
+                    value_date: "value_date".to_owned(),
+                    // amount: todo!(),
+                    currency: "todo!()".to_owned(),
+                    credit_debit: "todo!()".to_owned(),
+                    narrative: Vec::new(),
                 });
             }
         }
@@ -236,7 +206,6 @@ impl UniParser {
         let mut reader = quick_xml::reader::Reader::from_str(input);
         reader.config_mut().trim_text(true);
 
-
         let mut count = 0;
         let mut txt: Vec<String> = Vec::new();
         let mut buf = Vec::new();
@@ -251,15 +220,14 @@ impl UniParser {
                 // exits the loop when reaching end of file
                 Ok(Event::Eof) => break,
 
-                Ok(Event::Start(e)) => {
-                    match e.name().as_ref() {
-                        b"tag1" => println!("attributes values: {:?}",
-                                            e.attributes().map(|a| a.unwrap().value)
-                                            .collect::<Vec<_>>()),
-                        b"tag2" => count += 1,
-                        _ => (),
-                    }
-                }
+                Ok(Event::Start(e)) => match e.name().as_ref() {
+                    b"tag1" => println!(
+                        "attributes values: {:?}",
+                        e.attributes().map(|a| a.unwrap().value).collect::<Vec<_>>()
+                    ),
+                    b"tag2" => count += 1,
+                    _ => (),
+                },
                 Ok(Event::Text(e)) => txt.push(e.decode().unwrap().into_owned()),
 
                 // There are several other `Event`s we do not consider here
@@ -280,30 +248,7 @@ impl UniParser {
             self.headers = header.split(',').map(|s| s.trim().to_string()).collect();
         }
 
-        // if let Some(header) = lines.next() {
-        //     self.headers = header.split(',').map(|s| s.trim().to_string()).collect();
-        // }
 
-        // let mut data_transactions: Vec<Transaction> = Vec::new();
-        // let account_data = AccountInto::new(6, "csv from str".to_owned());
-
-        // for line in lines {
-        //     let line = line.trim();
-        //     if !line.is_empty() {
-        //         let _split_string = &line.split(',').map(|s| s.trim().to_string());
-        //         self.rows
-        //             .push(line.split(',').map(|s| s.trim().to_string()).collect());
-
-        //         // data_transactions.append(other);
-
-        //         data_transactions.push(Transaction {
-        //             country: "ru",
-        //             id: 1,
-        //         });
-        //     }
-        // }
-
-        // dbg!(&data_transactions);
         AccountInto::new(6, "csv from str".to_owned())
     }
 
@@ -504,6 +449,23 @@ impl FinConverter {
             InputParserFormat::Camt053 => parser.parse_camt053_from_str(&self.input_buffer),
             InputParserFormat::Mt940 => parser.parse_mt940_from_str(&self.input_buffer),
         };
+
+
+        let log_dir = std::path::Path::new("output");
+        let debug_data = parsed_account_data.make_debug_as_yaml();
+        let yaml_string = serde_yaml::to_string(&debug_data).unwrap();
+        let now_local = chrono::Local::now();
+        let custom_format = now_local.format("%m.%d.%Y_%I-%M-%S_%.3f");
+        let gen_output_name = format!("from_{}_to_{}_{}.yaml", self.process_input_type, self.process_output_type, custom_format);
+        let output_path = log_dir.join(gen_output_name);
+        // let output_path = format!("output/3.yaML", );
+        dbg!(&output_path);
+        std::fs::create_dir_all(&log_dir).unwrap();
+        let mut file = std::fs::File::create(output_path).unwrap();
+        file.write_all(yaml_string.as_bytes());
+        // std::fs::write(&output_path, yaml_string)
+        //     .with_context(|| format!("Failed to write YAML: {}", output_path))?;
+
 
         // self.output_bytes = parser.account_to_yaml_bytes(account_data);
         let rendered_result = match self.process_output_type {

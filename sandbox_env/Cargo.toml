@@ -5,6 +5,12 @@ edition = "2024"
 
 [dependencies]
 csv = "1.4.0"
-swift-mt-message = "3.1.4"
+swift-mt-message = "3.1"
 quick-xml = "0.38"
 serde = "1.0"
+roxmltree = "0.20"
+serde_yaml = "0.9"
+anyhow = "1.0"
+serde_json = "1.0"
+mt940 = "1.1.0"
+regex = "1.10"

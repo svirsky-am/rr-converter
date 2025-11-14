@@ -28,3 +28,5 @@ target/debug/rr-file-processor \
 ```
 # refs
 https://github.com/r3bb1t/coverage_formats/blob/main/Readme.md
+
+cargo run -p sandbox_env
