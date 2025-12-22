@@ -2,21 +2,23 @@ use std::fmt;
 
 use serde::Serialize;
 
+use chrono::{NaiveDate, NaiveDateTime};
+
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub(crate) enum OpKind {
     // пополнить/потратить счёт
-    Deposit(u64),
-    Withdraw(u64),
+    // Deposit(u64),
+    // Withdraw(u64),
     // закрыть аккаунт - все средства выведены
-    CloseAccount,
+    // CloseAccount,
 } // вот и всё, никаких посторонних операций и данных! 
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub(crate) enum BalanceAdjustType {
     Debit,
     Credit,
-    WithoutInfo
-} 
+    WithoutInfo,
+}
 
 impl Default for BalanceAdjustType {
     fn default() -> Self {
@@ -26,22 +28,22 @@ impl Default for BalanceAdjustType {
 
 impl fmt::Display for BalanceAdjustType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-      let name = match self {
-        BalanceAdjustType::Credit => "Credit",
-        BalanceAdjustType::Debit => "Debit",
-        BalanceAdjustType::WithoutInfo => "WithoutInfo",
-      };
-      write!(f, "{}", name)
+        let name = match self {
+            BalanceAdjustType::Credit => "Credit",
+            BalanceAdjustType::Debit => "Debit",
+            BalanceAdjustType::WithoutInfo => "WithoutInfo",
+        };
+        write!(f, "{}", name)
     }
-  }
+}
 
 #[derive(PartialEq, Serialize, Debug, Clone)]
 pub struct Balance {
     pub amount: f64,
     pub currency: String,
     pub credit_debit: BalanceAdjustType, // "CRDT" / "DBIT" or "C"/"D"
-    pub date: String,         // YYYY-MM-DD
-    pub country: String,
+    pub date: NaiveDate,                 // YYYY-MM-DD
+    // pub country: String,
     pub last_ops: Vec<OpKind>,
 }
 
@@ -51,11 +53,9 @@ pub struct Balance {
 //     last_ops: Vec<OpKind>,
 // }
 
-
-
 #[derive(PartialEq, Serialize, Debug, Clone, Default)]
 pub struct Transaction {
-    pub date: String,
+    pub date_time: NaiveDateTime,
     pub debit_account: String,
     pub credit_account: String,
     pub amount: f64, // sum
@@ -64,25 +64,50 @@ pub struct Transaction {
     pub transaction_type: Option<String>,
     // pub narrative: Vec<String>,
     pub target_bank: String,
-    pub purpose: String, 
-    // pub country: &'static str, 
-    pub id: u128
+    pub purpose: String,
+    // pub country: &'static str,
+    pub id: u128,
 }
 
-#[derive(Serialize, Debug, Clone)]
-pub struct StatementData {
-    pub account: String,
-    pub currency: String,
-    pub statement_id: String,
-    pub creation_time: Option<String>, // Only in CAMT
-    pub opening_balance: Option<Balance>,
-    pub closing_balance: Option<Balance>,
-    pub transactions: Vec<Transaction>,
-}
-
-pub fn gen_time_prefix_to_filename() -> String
-{
+pub fn gen_time_prefix_to_filename() -> String {
     let now_local = chrono::Local::now();
-    let custom_format: chrono::format::DelayedFormat<chrono::format::StrftimeItems<'_>> = now_local.format("%m.%d.%Y_%I-%M-%S_%.3f");
+    let custom_format: chrono::format::DelayedFormat<chrono::format::StrftimeItems<'_>> =
+        now_local.format("%m.%d.%Y_%I-%M-%S_%.3f");
     custom_format.to_string()
+}
+
+pub fn parse_russian_date(input: &str) -> Result<NaiveDate, Box<dyn std::error::Error>> {
+    let months = [
+        ("января", 1),
+        ("февраля", 2),
+        ("марта", 3),
+        ("апреля", 4),
+        ("мая", 5),
+        ("июня", 6),
+        ("июля", 7),
+        ("августа", 8),
+        ("сентября", 9),
+        ("октября", 10),
+        ("ноября", 11),
+        ("декабря", 12),
+    ];
+
+    let parts: Vec<&str> = input.split_whitespace().collect();
+    if parts.len() != 3 {
+        return Err("Expected format: 'DD MMMM YYYY'".into());
+    }
+
+    let day = parts[0].parse::<u32>()?;
+    let year = parts[2].parse::<i32>()?;
+
+    let month = months
+        .iter()
+        .find(|&&(name, _)| name == parts[1])
+        .ok_or("Unknown Russian month")?
+        .1;
+
+    let date = NaiveDate::from_ymd_opt(year, month, day).ok_or("Invalid calendar date")?;
+
+    // Ok(date.format("%Y-%m-%d").to_string())
+    Ok(date)
 }

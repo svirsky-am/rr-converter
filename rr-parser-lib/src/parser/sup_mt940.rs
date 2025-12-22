@@ -1,58 +1,30 @@
-use serde::Serialize;
+use chrono::{NaiveDate, NaiveDateTime};
 use regex::Regex;
 use std::collections::HashMap;
 
-use crate::parser::{Wallet, common::{Balance, BalanceAdjustType, Transaction}};
+use crate::parser::{
+    Wallet,
+    common::{Balance, BalanceAdjustType, Transaction},
+};
 
-#[derive(Serialize, Debug)]
-pub struct Mt940Message {
-    transaction_reference: String, // :20:
-    account_identification: String, // :25:
-    statement_number: String,       // :28C:
-    opening_balance: Option<Balance>,
-    closing_balance: Option<Balance>,
-    transactions: Vec<Transaction>,
-}
-
-// #[derive(Serialize, Debug)]
-// struct Balance {
-//     dc_mark: char,      // C or D
-//     date: String,       // YYMMDD -> we keep as string
-//     currency: String,
-//     amount: String,     // e.g., "444,29"
-// }
-
-// #[derive(Serialize, Debug)]
-// struct Transaction {
-//     value_date: String,   // YYMMDD
-//     entry_date: String,   // YYMMDD (optional in some cases but present here)
-//     debit_credit: char,   // C or D
-//     amount: String,
-//     transaction_type: String,
-//     reference: String,
-//     description: String,
-// }
-
-pub fn parse_mt940_alt(input: &str) -> anyhow::Result<Vec<Wallet>>  {
-    let mut statement_data_vec: Vec<Wallet>  = Vec::new();
+pub fn parse_mt940_alt(input: &str) -> anyhow::Result<Vec<Wallet>> {
+    let mut statement_data_vec: Vec<Wallet> = Vec::new();
     // let mut transactions = Vec::new();
     // let re_msg = Regex::new(r"\{1:[^}]*\}\{2:[^}]*\}\{3:[^}]*\}\{4:\n?([^}]*)\}-\}\{5:[^}]*\}").unwrap();
-    print!("TEST_TEST2");
+    // print!("TEST_TEST2");
     // let re_msg_all = Regex::new(r"[\[\(]1\:(.*)\}2\:(.*)\}4\:(\n?\n?[^}]*)").unwrap();
     // let re_msg_all = Regex::new(r"\{1:[^}]*\}\{2:[^}]*\}\{3:[^}]*\}\{4:\n?([^}]*)\}-\}\{5:[^}]*\}").unwrap();
 
-
     // let re_msg_all = Regex::new(r"\{1:[^}]*\}\{2:[^}]*\}").unwrap();
-    let re_msg_all = Regex::new(r"[\[\(\{]1\:(.*)\}\{2\:(.*)\}\{3:[^}]*\}\{4:\n?([:\w\n\d\/, ]*)").unwrap();
-
-
+    let re_msg_all =
+        Regex::new(r"[\[\(\{]1\:(.*)\}\{2\:(.*)\}\{3:[^}]*\}\{4:\n?([:\w\n\d\/, ]*)").unwrap();
 
     // let re_msg_all = Regex::new(r"[\[\{\(]1\:(.*)").unwrap();
     // let re_msg_4 = Regex::new(r".*\}4\:(\n?\n?[^}]*)").unwrap();
     let re_lines = Regex::new(r"(:\d{2}[A-Z]?:)").unwrap();
 
     // let mut messages = Vec::new();
-    
+
     for cap in re_msg_all.captures_iter(input) {
         let body = &cap[3];
         // dbg!( &body);
@@ -98,14 +70,12 @@ pub fn parse_mt940_alt(input: &str) -> anyhow::Result<Vec<Wallet>>  {
                 let tx = parse_61(value);
                 let mut desc = String::new();
 
-                
-
                 // Peek next for :86:
-                if let Some((next_tag, next_value)) = field_iter.peek() {
-                    if **next_tag == ":86:" {
-                        desc = (*next_value).clone();
-                        field_iter.next(); // consume :86:
-                    }
+                if let Some((next_tag, next_value)) = field_iter.peek()
+                    && **next_tag == ":86:"
+                {
+                    desc = (*next_value).clone();
+                    field_iter.next(); // consume :86:
                 }
 
                 transactions.push(Transaction {
@@ -114,9 +84,9 @@ pub fn parse_mt940_alt(input: &str) -> anyhow::Result<Vec<Wallet>>  {
                 });
             }
         }
-        dbg!(&transactions);
+        // dbg!(&transactions);
         let account_servicer = field_map.get("20:").cloned().unwrap_or_default(); // sending bank 
-        dbg!(&account_servicer);
+        // dbg!(&account_servicer);
         // messages.push(Mt940Message {
         //     transaction_reference,
         //     account_identification,
@@ -126,15 +96,15 @@ pub fn parse_mt940_alt(input: &str) -> anyhow::Result<Vec<Wallet>>  {
         //     transactions,
         // });
         let mut todo_cash_data = Wallet::default();
+        todo_cash_data.bank_maintainer = account_servicer;
         todo_cash_data.account = account_identification;
         todo_cash_data.statement_id = field_map.get(":28C:").cloned().unwrap_or_default();
         todo_cash_data.opening_balance = field_map.get(":60F:").map(|v| parse_60f(v));
         todo_cash_data.closing_balance = field_map.get(":62F:").map(|v| parse_60f(v));
-        // todo_cash_data.transactions = transactions;
+        todo_cash_data.transactions = transactions;
         // todo_cash_data.opening_balance = Some(field_map.get(":60F:").map(|v| parse_60f(v)));
         statement_data_vec.push(todo_cash_data);
         // dbg!(&messages);
-
     }
     statement_data_vec.push(Wallet::default());
     // messages
@@ -151,17 +121,23 @@ fn parse_60f(s: &str) -> Balance {
         _ => BalanceAdjustType::Credit,
     };
     let rest = &s[1..];
-    let date = rest[..6].to_string();
+    let date_str = rest[..6].to_string();
+    let date = parse_yymmdd(&date_str).unwrap();
     let currency = rest[6..9].to_string();
     let amount = rest[9..].to_string().parse::<f64>().unwrap_or(0.0);
     // Balance { dc_mark, date, currency, amount }
-    Balance { amount,
+    Balance {
+        amount,
         currency,
         date,
-        country: "pakistan".to_owned(),
+        // country: "pakistan".to_owned(),
         credit_debit,
-        last_ops: Vec::new()
+        last_ops: Vec::new(),
     }
+}
+
+fn parse_yymmdd(s: &str) -> Result<NaiveDate, chrono::ParseError> {
+    NaiveDate::parse_from_str(s, "%y%m%d")
 }
 
 fn parse_61(s: &str) -> Transaction {
@@ -175,25 +151,32 @@ fn parse_61(s: &str) -> Transaction {
     let value_date: String = chars.by_ref().take(6).collect();
     // Next 4 (optional): entry date MMDD → but in MT940 it's often same length; in your sample it's always 4 more
     // We assume 4-digit entry date if present (total 10 chars before C/D)
-    let date = match  s.len() >= 10 {
-        true => format!("{}_{}", value_date, s[6..10].to_string()),
+    let date_str = match s.len() >= 10 {
+        true => format!("{}_{}", value_date, &s[6..10]),
         false => value_date,
-            };
-
+    };
+    // dbg!(&date_str);
+    let date_time = NaiveDateTime::parse_from_str(&date_str, "%y%m%d_%H%M").unwrap();
+    //     Ok(date) => date,
+    //     Err(e) =>  e,
+    // };
+    // let date = parsed_date?;
+    // let date             NaiveDate::parse_from_str(&date_str, "%d-%m-%Y");
+    //
     // Now find C/D
     let mut pos = 10;
     let mut credit_debit = BalanceAdjustType::Credit;
-    if s.len() > 10 {
-        if let Some(c) = s.chars().nth(10) {
-            if c == 'C' || c == 'D' {
-                credit_debit = BalanceAdjustType::Credit;
-                pos = 11;
-            } else if let Some(c2) = s.chars().nth(11) {
-                if c2 == 'C' || c2 == 'D' {
-                    credit_debit = BalanceAdjustType::Debit;
-                    pos = 12;
-                }
-            }
+    if s.len() > 10
+        && let Some(c) = s.chars().nth(10)
+    {
+        if c == 'C' || c == 'D' {
+            credit_debit = BalanceAdjustType::Credit;
+            pos = 11;
+        } else if let Some(c2) = s.chars().nth(11)
+            && (c2 == 'C' || c2 == 'D')
+        {
+            credit_debit = BalanceAdjustType::Debit;
+            pos = 12;
         }
     }
 
@@ -203,7 +186,10 @@ fn parse_61(s: &str) -> Transaction {
         .find(|(_, c)| !c.is_ascii_digit() && *c != ',' && *c != '.')
         .map(|(i, _)| pos + i)
         .unwrap_or(s.len());
-    let amount = s[pos..amount_end].to_string().parse::<f64>().unwrap_or(0.0f64);
+    let amount = s[pos..amount_end]
+        .to_string()
+        .parse::<f64>()
+        .unwrap_or(0.0f64);
 
     // let debit_amount = if !debit_str.is_empty() {
     //     Some(debit_str.parse::<f64>()?)
@@ -218,20 +204,18 @@ fn parse_61(s: &str) -> Transaction {
     } else {
         (Some(rest.to_string()), String::new())
     };
-    dbg!(&reference);
+    // dbg!(&reference);
 
     Transaction {
         id: 0,
         currency: "EUR".to_owned(),
-        date,
+        date_time,
         credit_debit,
         amount,
         transaction_type,
         credit_account: String::new(),
         debit_account: String::new(),
-        target_bank: reference, 
+        target_bank: reference,
         purpose: String::new(), // filled later
-
-
     }
 }
