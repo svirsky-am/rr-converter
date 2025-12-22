@@ -5,7 +5,15 @@ edition = "2024"
 
 [dependencies]
 time = { version = "0.3", features = ["formatting", "std"] }
+anyhow = "1.0"
+chrono = "0.4"
 chardetng = "0.1"
 encoding_rs = "0.8"
+serde = "1.0"
+serde_yaml = "0.9"
 strum = "0.27"
 strum_macros = "0.27"
+roxmltree = "0.20"
+csv = "1.4.0"
+swift-mt-message = "3.1.4"
+regex = "1.10"

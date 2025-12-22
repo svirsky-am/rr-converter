@@ -25,7 +25,7 @@ fn test_real_file_reading() {
 
     // let content = rr_parser_lib::read_file(test_file).expect("Failed to read test file");
 
-    let input_file = File::open(Path::new("tests/test_files/data.csv")).unwrap();
+    let input_file = File::open(Path::new("../tests/test_files/example_of_report_bill_1.csv")).unwrap();
         
     let reader_from_file = BufReader::new(input_file);
 
@@ -46,7 +46,7 @@ fn test_real_file_reading() {
         reader_from_file,
         output_writer_file,
         InputParserFormat::CsvExtraFin,
-        OutputParserFormat::Csv,
+        OutputParserFormat::Yaml,
     );
     assert!(_result_1.is_ok());
 

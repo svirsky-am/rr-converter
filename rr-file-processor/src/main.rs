@@ -137,10 +137,10 @@ fn read_input(source: &str) -> Result<String, Box<dyn std::error::Error>> {
 
 fn process_input_format(command: &str) -> Result<InputParserFormat, Box<dyn std::error::Error>> {
     match command {
-        "csv" => Ok(InputParserFormat::Csv),
+        // "csv" => Ok(InputParserFormat::Csv),
         "csvextrafin" => Ok(InputParserFormat::CsvExtraFin),
         "mt940" => Ok(InputParserFormat::Mt940),
-        "xml" => Ok(InputParserFormat::Xml),
+        // "xml" => Ok(InputParserFormat::Xml),
         "camt053" => Ok(InputParserFormat::Camt053),
         _ => Err(format!("Unknown command. Supported argument for in-format: {:#?}\n"," &InputParserFormat::all_variants()").into()) , // The catch-all pattern
     }
@@ -149,7 +149,7 @@ fn process_input_format(command: &str) -> Result<InputParserFormat, Box<dyn std:
 
 fn process_output_format(command: &str) -> Result<OutputParserFormat, Box<dyn std::error::Error>> {
     match command {
-        "csv" => Ok(OutputParserFormat::Csv),
+        // "csv" => Ok(OutputParserFormat::Csv),
         "csvextrafin" => Ok(OutputParserFormat::CsvExtraFin),
         "mt940" => Ok(OutputParserFormat::Mt940),
         "yaml" => Ok(OutputParserFormat::Yaml),
