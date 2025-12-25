@@ -92,7 +92,7 @@ pub fn parsr_csv_str(input_data: String) -> anyhow::Result<Vec<Transaction>> {
 
         let doc_number = record.get(14).unwrap_or("").trim().to_string();
         let id_transaction: u128 = doc_number.parse().unwrap_or(0);
-        let target_bank = record
+        let service_bank = record
             .get(17)
             .unwrap_or("")
             .replace("\n", " ")
@@ -118,7 +118,7 @@ pub fn parsr_csv_str(input_data: String) -> anyhow::Result<Vec<Transaction>> {
             currency,
             credit_debit,
             // narrative: narratives,
-            target_bank,
+            service_bank,
             purpose,
             transaction_type: None,
         };

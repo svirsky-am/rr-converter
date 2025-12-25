@@ -17,17 +17,22 @@ pub fn parse_mt940_alt(input: &str) -> anyhow::Result<Vec<Wallet>> {
 
     // let re_msg_all = Regex::new(r"\{1:[^}]*\}\{2:[^}]*\}").unwrap();
     let re_msg_all =
-        Regex::new(r"[\[\(\{]1\:(.*)\}\{2\:(.*)\}\{3:[^}]*\}\{4:\n?([:\w\n\d\/, ]*)").unwrap();
-
+        Regex::new(r"[\[\(\{]1\:...(.*)\{2\:.940(.*)[N]\}.{0,40}\{4:\n?([:\x20\w\n\d\/, ]*)").unwrap();
+        // Regex::new(r"[\[\(\{]1\:...(.*)\{2\:0940(.*)\}").unwrap();
+        // Regex::new(r"[\[\(\{]1\:F01(.*)\}\{2\:(.*)\}\{3:[^}]*\}\{4:\n?([:\w\n\d\/, ]*)").unwrap();
+        // Regex::new(r"[\[\(\{]1\:(.*)\}\{2\:(.*)\}\{3:[^}]*\}\{4:\n?([:\w\n\d\/, ]*)").unwrap();
     // let re_msg_all = Regex::new(r"[\[\{\(]1\:(.*)").unwrap();
     // let re_msg_4 = Regex::new(r".*\}4\:(\n?\n?[^}]*)").unwrap();
     let re_lines = Regex::new(r"(:\d{2}[A-Z]?:)").unwrap();
 
     // let mut messages = Vec::new();
-
+        
     for cap in re_msg_all.captures_iter(input) {
+        print!("TEST_TEST2");
+
+        let bank_maintainer = &cap[2];
         let body = &cap[3];
-        // dbg!( &body);
+        dbg!( &body);
         let mut fields: Vec<(&str, String)> = Vec::new();
 
         // Split into tagged fields, respecting multi-line values
@@ -52,19 +57,18 @@ pub fn parse_mt940_alt(input: &str) -> anyhow::Result<Vec<Wallet>> {
             fields.push((last_tag, current_value.trim_end().to_string()));
         }
 
-        // Build a map for easy access
         let field_map: HashMap<_, _> = fields.into_iter().collect();
 
         let mut transactions = Vec::new();
         let mut i = 0;
         while i < field_map.len() {
-            // Not efficient, but safe: scan in order
             i += 1;
         }
 
         // Collect all :61: and corresponding :86:
         let mut field_iter = field_map.iter().peekable();
-        let account_identification = field_map.get(":25:").cloned().unwrap_or_default();
+        // let account_identification = field_map.get(":25:").cloned().unwrap_or_default().parse::<u128>()?;
+        let account_name_identification = field_map.get(":25:").cloned().unwrap_or_default();
         while let Some((tag, value)) = field_iter.next() {
             if *tag == ":61:" {
                 let tx = parse_61(value);
@@ -85,7 +89,7 @@ pub fn parse_mt940_alt(input: &str) -> anyhow::Result<Vec<Wallet>> {
             }
         }
         // dbg!(&transactions);
-        let account_servicer = field_map.get("20:").cloned().unwrap_or_default(); // sending bank 
+        let account_name = field_map.get("20:").cloned().unwrap_or_default(); // Transaction reference number
         // dbg!(&account_servicer);
         // messages.push(Mt940Message {
         //     transaction_reference,
@@ -96,11 +100,31 @@ pub fn parse_mt940_alt(input: &str) -> anyhow::Result<Vec<Wallet>> {
         //     transactions,
         // });
         let mut todo_cash_data = Wallet::default();
-        todo_cash_data.bank_maintainer = account_servicer;
-        todo_cash_data.account = account_identification;
+        // todo_cash_data.bank_maintainer = account_servicer;
+        todo_cash_data.bank_maintainer = bank_maintainer.to_string();
+        // dbg!(bank_maintainer);
+        todo_cash_data.account = account_name_identification;
+        // todo_cash_data.id = account_identification;
         todo_cash_data.statement_id = field_map.get(":28C:").cloned().unwrap_or_default();
-        todo_cash_data.opening_balance = field_map.get(":60F:").map(|v| parse_60f(v));
-        todo_cash_data.closing_balance = field_map.get(":62F:").map(|v| parse_60f(v));
+        let dbg_opening_balance = field_map.get(":60F:").map(|v| parse_60f(v));
+        let dbg_closing_balance = field_map.get(":62F:").map(|v| parse_60f(v));
+        dbg!(dbg_opening_balance);
+        dbg!(dbg_closing_balance);
+        print!("test_dbg_opening_balance");
+        todo_cash_data.opening_balance = Some(Balance {
+            amount: 4.4,
+            currency: "default_currency".to_owned(),
+            credit_debit: BalanceAdjustType::Debit,
+            date: NaiveDate::from_ymd_opt(1951, 1, 1).unwrap(),
+            last_ops: Vec::new(),
+        });
+        todo_cash_data.closing_balance = Some(Balance {
+            amount: 3.3,
+            currency: "default_currency".to_owned(),
+            credit_debit: BalanceAdjustType::Debit,
+            date: NaiveDate::from_ymd_opt(1951, 1, 1).unwrap(),
+            last_ops: Vec::new(),
+        });
         todo_cash_data.transactions = transactions;
         // todo_cash_data.opening_balance = Some(field_map.get(":60F:").map(|v| parse_60f(v)));
         statement_data_vec.push(todo_cash_data);
@@ -126,6 +150,8 @@ fn parse_60f(s: &str) -> Balance {
     let currency = rest[6..9].to_string();
     let amount = rest[9..].to_string().parse::<f64>().unwrap_or(0.0);
     // Balance { dc_mark, date, currency, amount }
+    dbg!(amount);
+    
     Balance {
         amount,
         currency,
@@ -215,7 +241,7 @@ fn parse_61(s: &str) -> Transaction {
         transaction_type,
         credit_account: String::new(),
         debit_account: String::new(),
-        target_bank: reference,
+        service_bank: reference,
         purpose: String::new(), // filled later
     }
 }

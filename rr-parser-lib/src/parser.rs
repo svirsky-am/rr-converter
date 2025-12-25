@@ -322,23 +322,40 @@ impl UniParser {
 
             // (input, "%Y-%m-%dT%H:%M:%S")
 
-            let debit_account: String = "TODO debit_account".to_string();
-            let credit_account: String = "TODO credit_account".to_string();
+            // let debit_account: String = "TODO debit_account".to_string();
+            // let credit_account: String = "TODO credit_account".to_string(); //<BkTxCd Prtry
+            let bk_tx_cd_prtry_tag = ntry.descendants().find(|n| n.tag_name().name() == "Prtry").unwrap();
+            let cd_target_tr_tag_text = bk_tx_cd_prtry_tag.children()
+                .find(|n| n.has_tag_name((NS, "Cd")))
+                .context("Balance missing Prtry")?.text().unwrap();
+            // dbg!(cd_target_tr_tag);
+            let (debit_account, credit_account) = match credit_debit{
+                common::BalanceAdjustType::Debit => (cd_target_tr_tag_text.to_string(), account.clone()),
+                common::BalanceAdjustType::Credit => (account.clone(), cd_target_tr_tag_text.to_string()),
+                common::BalanceAdjustType::WithoutInfo => (account.clone(), cd_target_tr_tag_text.to_string()),
+            };
+            // bk_tx_cd_tag.children()
             // let target_bank: String = "TODO target bank".to_string();
-            let purpose = "TODO target bank".to_string();
+            // let purpose = "TODO target bank".to_string();
             // AddtlTxInf
 
-            let mut narratives = Vec::new();
-            if let Some(rmt) = ntry.children().find(|n| n.has_tag_name((NS, "RmtInf"))) {
-                for ustrd in rmt.children().filter(|n| n.has_tag_name((NS, "Ustrd"))) {
-                    if let Some(text) = ustrd.text() {
-                        narratives.push(text.trim().to_string());
-                    }
-                }
-            }
+            // let mut narratives = Vec::new();
+            // if let Some(rmt) = ntry.children().find(|n| n.has_tag_name((NS, "RmtInf"))) {
+            //     for ustrd in rmt.children().filter(|n| n.has_tag_name((NS, "Ustrd"))) {
+            //         if let Some(text) = ustrd.text() {
+            //             narratives.push(text.trim().to_string());
+            //         }
+            //     }
+            // }
+            // dbg!(&narratives);
+            // let purpose = "TODO target bank".to_string();
+            // let purpose = sup_camp053::get_text_of_deep_child_node(ntry, "RltdPties");
+            // dbg!(&purpose);
+            let purpose = "TODO parse RltdPties".to_string();
+            let sub_fmly_cd = sup_camp053::get_text_of_deep_child_node(ntry, "SubFmlyCd").unwrap();
             let accptnc_dt_tm_str =
                 sup_camp053::get_text_of_deep_child_node(ntry, "AccptncDtTm").unwrap();
-            let target_bank = sup_camp053::get_text_of_deep_child_node(ntry, "AcctSvcrRef")
+            let service_bank = sup_camp053::get_text_of_deep_child_node(ntry, "AcctSvcrRef")
                 .unwrap()
                 .to_string();
 
@@ -356,9 +373,9 @@ impl UniParser {
                 currency,
                 credit_debit,
                 // narrative: narratives,
-                target_bank,
+                service_bank,
                 purpose,
-                transaction_type: None,
+                transaction_type: Some(sub_fmly_cd.to_owned()),
             });
         }
 

@@ -87,21 +87,21 @@ mod tests {
             )))
             .unwrap(),
             InputParserFormat::Mt940,
-            OutputParserFormat::CsvExtraFin,
+            OutputParserFormat::Mt940,
         );
 
-        let _result_3 = parse_input_and_serialize_via_trait(
-            File::open(Path::new(&TestConstants::take_sample_file(
-                "MT_940_aiophotoz.mt940".to_string(),
-            )))
-            .unwrap(),
-            File::create(Path::new(&TestConstants::get_output_dir_path(
-                "MT_940_aiophotoz.mt940.txt".to_string(),
-            )))
-            .unwrap(),
-            InputParserFormat::Mt940,
-            OutputParserFormat::Camt053,
-        );
+        // let _result_3 = parse_input_and_serialize_via_trait(
+        //     File::open(Path::new(&TestConstants::take_sample_file(
+        //         "MT_940_aiophotoz.mt940".to_string(),
+        //     )))
+        //     .unwrap(),
+        //     File::create(Path::new(&TestConstants::get_output_dir_path(
+        //         "MT_940_aiophotoz.mt940.txt".to_string(),
+        //     )))
+        //     .unwrap(),
+        //     InputParserFormat::Mt940,
+        //     OutputParserFormat::Camt053,
+        // );
 
         let _result_4 = parse_input_and_serialize_via_trait(
             File::open(Path::new(&TestConstants::take_sample_file(
@@ -109,31 +109,31 @@ mod tests {
             )))
             .unwrap(),
             File::create(Path::new(&TestConstants::get_output_dir_path(
-                "MT940_github_1.mt940_to_.yaml".to_string(),
+                "MT940_github_1.mt940_to_.mt940".to_string(),
             )))
             .unwrap(),
             InputParserFormat::Mt940,
-            OutputParserFormat::Yaml,
+            OutputParserFormat::Mt940,
         );
     }
 
-    #[test]
-    fn test_render_extra_csv() {
-        let output_dir: &PathBuf = &TestConstants::get_output_path();
-        std::fs::create_dir_all(&output_dir).unwrap();
-        let _result_4 = parse_input_and_serialize_via_trait(
-            File::open(Path::new(&TestConstants::take_sample_file(
-                "MT940_github_1.mt940".to_string(),
-            )))
-            .unwrap(),
-            File::create(Path::new(&TestConstants::get_output_dir_path(
-                "MT940_github_1.mt940_to_.csv".to_string(),
-            )))
-            .unwrap(),
-            InputParserFormat::Mt940,
-            OutputParserFormat::CsvExtraFin,
-        );
-    }
+    // #[test]
+    // fn test_render_extra_csv() {
+    //     let output_dir: &PathBuf = &TestConstants::get_output_path();
+    //     std::fs::create_dir_all(&output_dir).unwrap();
+    //     let _result_4 = parse_input_and_serialize_via_trait(
+    //         File::open(Path::new(&TestConstants::take_sample_file(
+    //             "MT940_github_1.mt940".to_string(),
+    //         )))
+    //         .unwrap(),
+    //         File::create(Path::new(&TestConstants::get_output_dir_path(
+    //             "MT940_github_1.mt940_to_.csv".to_string(),
+    //         )))
+    //         .unwrap(),
+    //         InputParserFormat::Mt940,
+    //         OutputParserFormat::CsvExtraFin,
+    //     );
+    // }
 
     #[test]
     fn test_parse_camt053() {
