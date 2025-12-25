@@ -19,3 +19,20 @@ pub fn find_nested_text(parent: roxmltree::Node, path: &[(&str, &str)]) -> Strin
     current.text().unwrap_or("").trim().to_string()
 }
 
+pub fn get_text_of_deep_child_node<'a>(
+    parent: roxmltree::Node<'a, 'a>,
+    tag: &'a str,
+) -> Option<&'a str> {
+    if let Some(accptnc_dt_tm_str) = parent.descendants().find(|n| n.tag_name().name() == tag) {
+        if let Some(text) = accptnc_dt_tm_str.text() {
+            // println!("AccptncDtTm: {}", text);
+            Some(text)
+        } else {
+            None
+            // println!("AccptncDtTm node has no text content");
+        }
+    } else {
+        None
+        // println!("AccptncDtTm node not found");
+    }
+}
