@@ -66,7 +66,8 @@ pub struct Transaction {
     pub service_bank: String,
     pub purpose: String,
     // pub country: &'static str,
-    pub id: u128,
+    // pub id: u128,
+    pub id: String,
 }
 
 pub fn gen_time_prefix_to_filename() -> String {
