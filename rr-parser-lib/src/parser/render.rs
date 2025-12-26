@@ -330,8 +330,6 @@ pub fn render_content_as_camt053(input_vec: Vec<Wallet>) -> Result<Vec<u8>, Box<
 
         bk_to_cstmr_stmt_tag.close()?;
     }
-
-    // Close Document
     *depth_ref.borrow_mut() = 0;
     write_indent(&mut writer, 0)?;
     writer.write_event(Event::End(BytesEnd::new("Document")))?;
@@ -355,62 +353,60 @@ pub fn render_content_as_mt940(input_vec: Vec<Wallet>) -> Result<Vec<u8>, Box<dy
 
         let account_name = &cash_statement_data.account;
         let currency: &String = &cash_statement_data.currency;
+        dbg!(&cash_statement_data);
         let statement_id = &cash_statement_data.statement_id;
         let statement_start_format = cash_statement_data.statement_period_start.date().format("%y%m%d").to_string();
-        let open_balance_amount = &cash_statement_data.opening_balance.clone().unwrap().amount.to_string();
-        let open_balance_data = &cash_statement_data.opening_balance.clone().unwrap().date.format("%Y-%m-%d").to_string();
+        
+        let opening_balance = &cash_statement_data.opening_balance.clone().unwrap();
+        let open_balance_amount = opening_balance.amount.to_string().replace(".", ",");
+        let open_balance_data = opening_balance.date.format("%y%m%d").to_string();
+        let open_balance_currency = &opening_balance.currency;
+
         iner_result_content.push_str(&format!("{{1:F01{bank_maintainer}0000000000}}{{2:O940{bank_maintainer}N}}{{3:}}{{4:
 :20:{account_id}
 :25:{account_name}
 :28C:{statement_id}
-:60F:C{open_balance_data}{currency}{open_balance_amount}
+:60F:C{open_balance_data}{open_balance_currency}{open_balance_amount}
 "));
-        iner_result_content.push_str("\n>>> START TRANSACTIONS <<<\n");
+        // dbg!(&cash_statement_data);
+        // iner_result_content.push_str("\n>>> START TRANSACTIONS <<<\n");
         for tr in &cash_statement_data.transactions {
-            // dbg!(&tr.id);
-            match tr.credit_debit {
+            // dbg!(&tr);
+            let date_time = tr.date_time.format("%y%m%d%m%d").to_string();
+            let amount = tr.amount.to_string().replace(".", ",");
+
+            let transaction_type = tr.transaction_type.clone().unwrap(); 
+            let transaction_id = &tr.id; 
+            // tr.transaction_type.clone().unwrap().chars().take(3) 
+            let (debit_credit, tr_direction)  = match tr.credit_debit {
                 BalanceAdjustType::Debit => {
-                    iner_result_content.push_str(&format!(
-                        "\n,{},,,\"{}\",,,,\"{}\",{},,,,,{},,01,\"{}\",,,{},",
-                        tr.date_time,
-                        tr.debit_account,
-                        tr.credit_account,
-                        tr.amount,
-                        tr.id,
-                        tr.service_bank,
-                        tr.purpose // avoid newlines in CSV
-                    ));
+                    ("D".to_owned(), tr.credit_account.clone())
                 }
 
                 BalanceAdjustType::Credit => {
-                    iner_result_content.push_str(&format!(
-                        ":61:{}DR583,92NMSC1110030403010139//1234
-                        hr gjlm paulissen
-                        :86:NL47INGB9999999999 hr gjlm paulissen",
-                        tr.date_time.format("%y%m%d%m%d").to_string()
-//                         ":61:0909250925DR583,92NMSC1110030403010139//1234
-// hr gjlm paulissen
-// :86:NL47INGB9999999999 hr gjlm paulissen",
-                        // "\n,{},,,\"{}\",,,,\"{}\",,,,,{},{},,01,\"{}\",,,{},",
-                        // tr.date_time,
-                        // tr.debit_account,
-                        // tr.credit_account,
-                        // tr.amount,
-                        // tr.id,
-                        // tr.service_bank,
-                        // tr.purpose // avoid newlines in CSV
-                    ));
+                    ("C".to_owned(), tr.debit_account.clone())
                 }
-                BalanceAdjustType::WithoutInfo => iner_result_content.push_str("none"),
+                BalanceAdjustType::WithoutInfo => ("C".to_owned(), tr.credit_account.clone()),
             };
+            let description  = &tr.purpose;
+            iner_result_content.push_str(&format!(
+                ":61:{date_time}R{debit_credit}{amount}N{transaction_type}{tr_direction}
+:86:{description}\n"
+            ));
         }
-        let statement_end_format = cash_statement_data.statement_period_end.date().format("%y%m%d").to_string();
-        let closing_balance_amount = &cash_statement_data.closing_balance.clone().unwrap().amount.to_string();
-        let closing_balance_date = &cash_statement_data.closing_balance.clone().unwrap().date.format("%Y-%m-%d").to_string();
 
-        iner_result_content.push_str(&format!(":62F:C{closing_balance_date}{currency}{closing_balance_amount}
--}}{{5:}}n" ));
-        iner_result_content.push_str("\n>>> end TRANSACTIONS <<<\n");
+        let closing_balance = &cash_statement_data.closing_balance.clone().unwrap();
+        let closing_balance_amount = closing_balance.amount.to_string().replace(".", ",");
+        let closing_balance_data = closing_balance.date.format("%y%m%d").to_string();
+        let closing_balance_currency = &closing_balance.currency;
+        
+        let statement_end_format = cash_statement_data.statement_period_end.date().format("%y%m%d").to_string();
+        // let closing_balance_amount = &cash_statement_data.closing_balance.clone().unwrap().amount.to_string();
+        // let closing_balance_date = &cash_statement_data.closing_balance.clone().unwrap().date.format("%Y-%m-%d").to_string();
+
+        iner_result_content.push_str(&format!(":62F:C{closing_balance_data}{closing_balance_currency}{closing_balance_amount}
+-}}{{5:}}\n" ));
+        // iner_result_content.push_str("\n>>> end TRANSACTIONS <<<\n");
     }
 
     // let mut result_content: Vec<u8> = format!("result_content: {}\n", self)
@@ -457,7 +453,7 @@ pub fn render_content_as_csv_extra_fin(input_vec: Vec<Wallet>) -> Result<Vec<u8>
 ,,,,Дебет,,,,Кредит,,,,,,,,,,,,,,\n"
 ));
 
-        iner_result_content.push_str("\n>>> START TRANSACTIONS <<<\n");
+        // iner_result_content.push_str("\n>>> START TRANSACTIONS <<<\n");
         let mut wtr = csv::Writer::from_writer(Vec::new());
         for statement in &input_vec {
             for tr in &statement.transactions {
@@ -488,7 +484,32 @@ pub fn render_content_as_csv_extra_fin(input_vec: Vec<Wallet>) -> Result<Vec<u8>
         let csv_string = String::from_utf8(csv_bytes).unwrap();
         iner_result_content.push_str(&csv_string);
         // iner_result_content.push_str(">>> END TRANSACTIONS <<<\n");
+        let opening_balance = &cash_statement_data.opening_balance.clone().unwrap();
+        let open_balance_amount = opening_balance.amount.to_string().replace(".", ",");
+        // let open_balance_data = opening_balance.date.format("%y%m%d").to_string();
+        let open_balance_currency = &opening_balance.currency;
+        let closing_balance = &cash_statement_data.closing_balance.clone().unwrap();
+        let closing_balance_amount = closing_balance.amount.to_string().replace(".", ",");
+        // let closing_balance_data = closing_balance.date.format("%y%m%d").to_string();
+        let closing_balance_currency = &closing_balance.currency;
+        
+        let open_balance_data_format = format_russian_naive_date(opening_balance.date);
+        let closing_balance_format = format_russian_naive_date(closing_balance.date);
+
+
+        iner_result_content.push_str(&format!(",,,,,,,,,,,,,,,,,,,,,,,
+,б/с,,40702,,,,Дебет,,,,Кредит,,,,,,,,Всего,,,
+,,,,,,,,,,,,,,,,,,,,,,
+,Количество операций,,,,,,26,,,,6,,,,,,,,32,,,
+,Входящий остаток,,,,,,\"0,00\",,,,{open_balance_amount},,,,,,(П),,{open_balance_data_format} г.,,,
+,Итого оборотов,,,,,,TODO_DIFF,,,,TODO_DIFF,,,,,,,,,,,
+,Исходящий остаток,,,,,,\"0,00\",,,,{closing_balance_amount},,,,,,(П),,{closing_balance_format} г.,,,
+,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,\n"
+        ));
     }
+    // let opening_balance = &cash_statement_data.opening_balance.clone().unwrap();
+
 
     Ok(iner_result_content.as_bytes().to_vec())
 }
