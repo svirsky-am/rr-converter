@@ -63,7 +63,7 @@ pub struct Transaction {
     pub credit_debit: BalanceAdjustType,
     pub transaction_type: Option<String>,
     // pub narrative: Vec<String>,
-    pub target_bank: String,
+    pub service_bank: String,
     pub purpose: String,
     // pub country: &'static str,
     pub id: u128,
