@@ -29,6 +29,11 @@ sandbox-env:
 	cargo run -p sandbox_env
 
 
+
+.PHONY: run-integrated-tests
+run-integrated-tests: test_stdin_csv_to_xml test_xml_to_csv test_mt940_to_csv test-csv-to-xml-payload test_stdin_csv_to_xml
+
+
 .PHONY: build-and-exec-args-mode
 build-and-exec-args-mode: run-test-of-libs
 	cargo build -p rr-file-processor
@@ -37,35 +42,54 @@ build-and-exec-args-mode: run-test-of-libs
 		--input tests/test_files/example_of_report_bill_1.csv \
 		--output output/formatted/result.xml
 
+# +
 .PHONY: test_stdin_csv_to_xml
 test_stdin_csv_to_xml:
 	cat tests/test_files/example_of_report_bill_1.csv  | \
 		target/debug/rr-file-processor \
 			--in-format csv_extra_fin --out-format yaml \
 			--input  - \
-			--output output/formatted/stdin_csv_to_xml
+			--output output/integrated_tests/stdin_csv_to_xml
 
 .PHONY: test_csv_to_xml
 test_csv_to_xml:
 	target/debug/rr-file-processor \
 		--in-format csv_extra_fin --out-format camt_053 \
 		--input  tests/test_files/example_of_report_bill_1.csv  \
-		--output output/formatted/csv_to_xml
+		--output output/integrated_tests/csv_to_xml
 
+.PHONY: test_mt940_as_stdio_to_csv
+test_mt940_as_stdio_to_csv:
+	target/debug/rr-file-processor \ 
+		--in-format mt_940 --out-format csv_extra_fin \
+		--input  - \
+		--output output/integrated_tests/github_mt904_to_csv.csv < tests/test_files/MT940_github_1.mt940
+
+# +
+.PHONY: test_mt940_to_csv
+test_camt094_to_csv:
+	target/debug/rr-file-processor \
+		--in-format mt_940 --out-format csv_extra_fin \
+		--input  tests/test_files/MT940_github_1.mt940 \
+		--output output/integrated_tests/MT940_github_1.mt940_to_csv.csv
+
+
+#+
 .PHONY: test_xml_to_csv
 test_xml_to_csv:
 	target/debug/rr-file-processor \
-			--in-format camt_053 --out-format csv_extra_fin \
-			--input  tests/test_files/camt_053_treasurease.xml \
-			--output output/formatted/xml_to_csv
+		--in-format camt_053 --out-format csv_extra_fin \
+		--input  tests/test_files/camt_053_danske_bank.xml \
+		--output output/integrated/xml_to_csv.csv
 
+#+
 .PHONY: test-csv-to-xml-payload
 test-csv-to-xml-payload:
 	target/debug/rr-file-processor \
-		--in-format csv_extra_fin 
-		--out-format xml \
+		--in-format csv_extra_fin \
+		--out-format camt_053 \
 		--input  tests/test_files/example_of_report_bill_1.csv  \
-		--output output/payload/csv-to-xml
+		--output output/integrated/csv-to-xml.xml
 
 
 .PHONY: clean-run
@@ -87,4 +111,4 @@ linting:
 
 
 .PHONY: all
-all: run-test-of-libs run-test-of-bin build-and-exec-args-mode
+all: run-test-of-libs run-test-of-bin build-and-exec-args-mode 

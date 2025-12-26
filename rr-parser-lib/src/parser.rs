@@ -57,8 +57,14 @@ impl Default for Wallet {
             account: String::new(),
             statement_id: String::new(),
             statement_period_start: DateTime::from_timestamp(0, 0).unwrap().naive_utc(),
-            statement_period_end: DateTime::from_timestamp(4_102_444_800, 0).unwrap().naive_utc(),
-            creation_time: Some( DateTime::from_timestamp(4_102_444_800, 0).unwrap().naive_utc(),),
+            statement_period_end: DateTime::from_timestamp(4_102_444_800, 0)
+                .unwrap()
+                .naive_utc(),
+            creation_time: Some(
+                DateTime::from_timestamp(4_102_444_800, 0)
+                    .unwrap()
+                    .naive_utc(),
+            ),
             opening_balance: Some(Balance {
                 amount: 0.0,
                 currency: "default_currency".to_owned(),
@@ -112,21 +118,29 @@ impl UniParser {
         ).unwrap();
         if let Some(caps) = match_header_parser.captures(input) {
             let creation_time_str = String::from(&caps["data_creation"]);
-            let result_creation_sate_time = NaiveDateTime::parse_from_str(&creation_time_str, "%d.%m.%Y в %H:%M:%S").unwrap();
+            let result_creation_sate_time =
+                NaiveDateTime::parse_from_str(&creation_time_str, "%d.%m.%Y в %H:%M:%S").unwrap();
             // dbg!(result_creation_sate_time);
             account_data.statement_id = String::from(&caps["code"]);
-            account_data.bank_maintainer = String::from(&caps["bank_maintainer"]).trim().to_string();
+            account_data.bank_maintainer =
+                String::from(&caps["bank_maintainer"]).trim().to_string();
             account_data.id = String::from(&caps["client_id"]).parse::<u128>()?;
             account_data.currency = String::from(&caps["currency"]);
             account_data.account = String::from(&caps["client_name"]);
             account_data.creation_time = Some(result_creation_sate_time);
 
-            account_data.statement_period_start = parse_russian_date(&String::from(&caps["statement_period_start"])).unwrap().and_hms_opt(0, 0, 0).unwrap();
-            account_data.statement_period_end = parse_russian_date(&String::from(&caps["statement_period_end"])).unwrap().and_hms_opt(0, 0, 0).unwrap();
-            
-            
-            // dbg!(&caps);
+            account_data.statement_period_start =
+                parse_russian_date(&String::from(&caps["statement_period_start"]))
+                    .unwrap()
+                    .and_hms_opt(0, 0, 0)
+                    .unwrap();
+            account_data.statement_period_end =
+                parse_russian_date(&String::from(&caps["statement_period_end"]))
+                    .unwrap()
+                    .and_hms_opt(0, 0, 0)
+                    .unwrap();
 
+            // dbg!(&caps);
         } else {
             println!("No full match");
         }
@@ -223,7 +237,8 @@ impl UniParser {
             .context("Missing GrpHdr")?;
         let msg_id = get_text(grp_hdr, (NS, "MsgId"));
         let cre_dt_tm = get_text(grp_hdr, (NS, "CreDtTm"));
-        let creation_time =Some( NaiveDateTime::parse_from_str(&cre_dt_tm, "%Y-%m-%dT%H:%M:%S").unwrap());
+        let creation_time =
+            Some(NaiveDateTime::parse_from_str(&cre_dt_tm, "%Y-%m-%dT%H:%M:%S").unwrap());
 
         let stmt = bk_to_cstmr_stmt
             .children()
@@ -250,9 +265,12 @@ impl UniParser {
             .find(|n| n.has_tag_name((NS, "FrToDt")))
             .context("Missing FrToDt")?;
         let statement_period_start_str = find_nested_text(fr_to_dt, &[(NS, "FrDtTm")]);
-        let statement_period_start = NaiveDateTime::parse_from_str(&statement_period_start_str, "%Y-%m-%dT%H:%M:%S").unwrap();
+        let statement_period_start =
+            NaiveDateTime::parse_from_str(&statement_period_start_str, "%Y-%m-%dT%H:%M:%S")
+                .unwrap();
         let statement_period_end_str = find_nested_text(fr_to_dt, &[(NS, "ToDtTm")]);
-        let statement_period_end = NaiveDateTime::parse_from_str(&statement_period_end_str, "%Y-%m-%dT%H:%M:%S").unwrap();
+        let statement_period_end =
+            NaiveDateTime::parse_from_str(&statement_period_end_str, "%Y-%m-%dT%H:%M:%S").unwrap();
         // let id: u128 = 0;
 
         // Balances
@@ -325,15 +343,27 @@ impl UniParser {
 
             // let debit_account: String = "TODO debit_account".to_string();
             // let credit_account: String = "TODO credit_account".to_string(); //<BkTxCd Prtry
-            let bk_tx_cd_prtry_tag = ntry.descendants().find(|n| n.tag_name().name() == "Prtry").unwrap();
-            let cd_target_tr_tag_text = bk_tx_cd_prtry_tag.children()
+            let bk_tx_cd_prtry_tag = ntry
+                .descendants()
+                .find(|n| n.tag_name().name() == "Prtry")
+                .unwrap();
+            let cd_target_tr_tag_text = bk_tx_cd_prtry_tag
+                .children()
                 .find(|n| n.has_tag_name((NS, "Cd")))
-                .context("Balance missing Prtry")?.text().unwrap();
+                .context("Balance missing Prtry")?
+                .text()
+                .unwrap();
             // dbg!(cd_target_tr_tag);
-            let (debit_account, credit_account) = match credit_debit{
-                common::BalanceAdjustType::Debit => (cd_target_tr_tag_text.to_string(), account.clone()),
-                common::BalanceAdjustType::Credit => (account.clone(), cd_target_tr_tag_text.to_string()),
-                common::BalanceAdjustType::WithoutInfo => (account.clone(), cd_target_tr_tag_text.to_string()),
+            let (debit_account, credit_account) = match credit_debit {
+                common::BalanceAdjustType::Debit => {
+                    (cd_target_tr_tag_text.to_string(), account.clone())
+                }
+                common::BalanceAdjustType::Credit => {
+                    (account.clone(), cd_target_tr_tag_text.to_string())
+                }
+                common::BalanceAdjustType::WithoutInfo => {
+                    (account.clone(), cd_target_tr_tag_text.to_string())
+                }
             };
             // bk_tx_cd_tag.children()
             // let target_bank: String = "TODO target bank".to_string();
@@ -403,17 +433,18 @@ impl UniParser {
     }
 
     fn parse_mt940_from_str(&mut self, input: &str) -> anyhow::Result<Vec<Wallet>> {
-        
         sup_mt940::parse_mt940_alt(input)
     }
 }
 
+/// Supported input formats for financial data parsing.
 #[derive(Debug, Clone)]
 pub enum InputParserFormat {
-    // Csv,
+    /// Extended CSV format by Sberbank with additional financial fields.
     CsvExtraFin,
-    // Xml,
+    /// ISO 20022 camt.053 XML bank statement format.
     Camt053,
+    /// SWIFT MT940 customer statement message format.
     Mt940,
 }
 
@@ -448,6 +479,9 @@ impl std::str::FromStr for InputParserFormat {
 }
 
 impl InputParserFormat {
+        /// Returns a slice of all supported input parser formats.
+    ///
+    /// This list includes only the formats currently enabled for parsing input data.
     pub fn all_variants() -> &'static [InputParserFormat] {
         &[
             // InputParserFormat::Csv,
@@ -459,14 +493,37 @@ impl InputParserFormat {
     }
 }
 
+/// Specifies the output format for financial data conversion.
+///
+/// This enum defines the supported serialization formats that the converter can
+/// produce. Each variant corresponds to a specific structured representation
+/// commonly used in financial data interchange.
+///
+/// The enum implements [`strum_macros::EnumString`], allowing parsing from
+/// string representations (case-sensitive) such as:
+/// - `"csv_extra_fin"` or `"CsvExtraFin"` → [`OutputParserFormat::CsvExtraFin`]
+/// - `"yaml"` → [`OutputParserFormat::Yaml`]
+/// - `"camt_053"` → [`OutputParserFormat::Camt053`]
+/// - `"mt_940"` → [`OutputParserFormat::Mt940`]
+///
+/// # Variants
+/// - **`CsvExtraFin`**: Extended CSV format tailored for financial records by Sberbank,
+///   typically including additional metadata or normalized fields beyond basic CSV.
+/// - **`Yaml`**: Human-readable YAML serialization of the financial data structure.
+/// - **`Camt053`**: ISO 20022 `camt.053` XML message format, used for bank statement reporting.
+/// - **`Mt940`**: SWIFT MT940 structured narrative format, commonly used in bank-to-customer stat
 #[derive(Debug, Clone, strum_macros::EnumString)]
 pub enum OutputParserFormat {
+    /// Extended CSV format by sberbank with additional financial fields.
     #[strum(serialize = "csv_extra_fin", serialize = "CsvExtraFin")]
     CsvExtraFin,
+    /// YAML serialization of parsed financial data.
     #[strum(serialize = "yaml")]
     Yaml,
+    /// ISO 20022 camt.053 XML bank statement format.
     #[strum(serialize = "camt_053")]
     Camt053,
+    /// SWIFT MT940 customer statement message format.
     #[strum(serialize = "mt_940")]
     Mt940,
 }
@@ -482,6 +539,7 @@ impl fmt::Display for OutputParserFormat {
 }
 
 impl OutputParserFormat {
+    /// Returns a slice of all currently supported output formats.
     pub fn all_variants() -> &'static [OutputParserFormat] {
         &[
             // OutputParserFormat::Csv,
@@ -513,20 +571,32 @@ impl OutputParserFormat {
 // }
 // impl std::error::Error for FinConverterError {}
 
+
+/// A bidirectional I/O adapter that converts financial data from one format to another.
+///
+/// Implements [`std::io::Write`] to accept input data (e.g., MT940, CAMT.053, EXTRAFINCSV),
+/// buffers and decodes it (with UTF-8 and encoding fallback support), then parses
+/// and converts it to the target output format. Also implements [`std::io::Read`]
+/// to emit the resulting serialized data.
+///
+/// The conversion is triggered on [`flush()`], after which the output can be read.
+/// Intermediate results are also written to YAML files in the `log_dir` for debugging.
 pub struct FinConverter {
     // Input state (for Write)
     process_input_type: InputParserFormat,
     process_output_type: OutputParserFormat,
-    input_buffer: String,
+    input_byte_buffer: Vec<u8>, // накапливаем сырые байты для поддержки кириллицы 
     flushed: bool,
-
+    input_buffer: String,
     // Output state (for Read)
     output_bytes: Vec<u8>,
     read_pos: usize,
     log_dir: std::path::PathBuf,
+    // input_byte_buffer: (),
 }
 
 impl FinConverter {
+    /// Creates a new `FinConverter` for converting between the specified input and output formats.
     pub fn new(
         process_input_type: InputParserFormat,
         process_output_type: OutputParserFormat,
@@ -534,15 +604,15 @@ impl FinConverter {
         Self {
             process_input_type,
             process_output_type,
+            input_byte_buffer: Vec::new(),
             input_buffer: String::new(),
             flushed: false,
             output_bytes: Vec::new(),
             read_pos: 0,
-            log_dir: std::path::PathBuf::from("output"),
+            log_dir: std::path::PathBuf::from("output").join("debug_yamls"),
         }
     }
-    // type Err = String;
-    // Internal method: parse CSV and generate YAML bytes
+
     fn process_data(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         if self.flushed {
             return Ok(());
@@ -596,8 +666,8 @@ impl FinConverter {
         let mut input_format_str = format!("input_format: {}\n", self.process_input_type)
             .as_bytes()
             .to_vec();
-        self.output_bytes.append(&mut input_format_str);
-        self.output_bytes.append(&mut output_format_str);
+        // self.output_bytes.append(&mut input_format_str);
+        // self.output_bytes.append(&mut output_format_str);
 
         self.flushed = true;
         Ok(())
@@ -618,27 +688,33 @@ fn detect_and_decode(buf: &[u8]) -> String {
 }
 // detector.
 
-// 📥 Implement Write: accept CSV data
 impl Write for FinConverter {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        let _detected_coding = detect_and_decode(buf);
-        let s = if let Ok(utf8) = std::str::from_utf8(buf) {
-            utf8.to_string()
-        } else {
-            detect_and_decode(buf)
-        };
-        self.input_buffer.push_str(&s);
+        // Просто добавляем байты — не пытаемся сразу декодировать
+        self.input_byte_buffer.extend_from_slice(buf);
         Ok(buf.len())
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        let _result = self.process_data(); // Parse and prepare YAML
-        self.flushed = false;
+        // Теперь, на flush, можно безопасно попытаться декодировать
+        // Всё накопленное как UTF-8 (или через detect_and_decode)
+        // Потому что flush означает: "вход завершён"
+        let input_str = match std::str::from_utf8(&self.input_byte_buffer) {
+            Ok(s) => s.to_string(),
+            Err(_) => {
+                detect_and_decode(&self.input_byte_buffer)
+            }
+        };
+        self.input_buffer.push_str(&input_str);
+        let _precess_result = self.process_data();
+        // self.process_string_input();
+        // self.flushed = true;
+
+        self.flushed = true;
         Ok(())
     }
 }
 
-// 📤 Implement Read: emit YAML data
 // Read apply to buffer of converter
 impl Read for FinConverter {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
@@ -654,7 +730,15 @@ impl Read for FinConverter {
     }
 }
 
-// ===== Example usage with stdio and BufReader/BufWriter =====
+/// ===== Example usage with stdio and BufReader/BufWriter =====
+/// Parses financial input data and serializes it to the specified output format.
+///
+/// Reads from `input_buff_reader`, converts the data from `process_input_type`
+/// to `process_output_type` using an internal `FinConverter`, and writes the
+/// result to `output_buff_writer`.
+///
+/// # Errors
+/// Returns an `io::Error` if reading, writing, parsing, or conversion fails.
 pub fn parse_input_and_serialize_via_trait<TypeOfBuffInput: Read, TypeOfBuffOutput: Write>(
     mut input_buff_reader: TypeOfBuffInput,
     mut output_buff_writer: TypeOfBuffOutput,
@@ -664,14 +748,10 @@ pub fn parse_input_and_serialize_via_trait<TypeOfBuffInput: Read, TypeOfBuffOutp
     // Create our transformer
     let mut converter = FinConverter::new(process_input_type, process_output_type);
 
-    // 1️⃣ Read CSV from stdin using Read trait (via copy)
-
     std::io::copy(&mut input_buff_reader, &mut converter)?;
 
-    // 2️⃣ Flush to trigger parsing (optional — Read will trigger it too)
     converter.flush()?;
 
-    // 3️⃣ Write YAML to stdout using Read trait (via copy)
     std::io::copy(&mut converter, &mut output_buff_writer)?;
 
     Ok(())

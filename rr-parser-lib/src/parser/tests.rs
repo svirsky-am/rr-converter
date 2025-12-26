@@ -47,7 +47,7 @@ mod tests {
     };
 
     #[test]
-    fn test_convert_csv_to_xml_via_trait() {
+    fn test_convert_csv_to_csv() {
         let input_file = File::open(Path::new(&TestConstants::take_sample_file(
             "example_of_report_bill_1.csv".to_string(),
         )))
@@ -58,7 +58,7 @@ mod tests {
         let output_dir: &PathBuf = &TestConstants::get_output_path();
         std::fs::create_dir_all(&output_dir).unwrap();
         let outputfile = File::create(Path::new(&TestConstants::get_output_dir_path(
-            "csv_to_csv.txt".to_string(),
+            "test_convert_csv_to_csv.csv".to_string(),
         )))
         .unwrap();
 
@@ -117,26 +117,58 @@ mod tests {
         );
     }
 
-    // #[test]
-    // fn test_render_extra_csv() {
-    //     let output_dir: &PathBuf = &TestConstants::get_output_path();
-    //     std::fs::create_dir_all(&output_dir).unwrap();
-    //     let _result_4 = parse_input_and_serialize_via_trait(
-    //         File::open(Path::new(&TestConstants::take_sample_file(
-    //             "MT940_github_1.mt940".to_string(),
-    //         )))
-    //         .unwrap(),
-    //         File::create(Path::new(&TestConstants::get_output_dir_path(
-    //             "MT940_github_1.mt940_to_.csv".to_string(),
-    //         )))
-    //         .unwrap(),
-    //         InputParserFormat::Mt940,
-    //         OutputParserFormat::CsvExtraFin,
-    //     );
-    // }
+    #[test]
+    fn test_circular_csv_mt940_camt053() {
+        let output_dir: &PathBuf = &TestConstants::get_output_path();
+        std::fs::create_dir_all(&output_dir).unwrap();
+
+        let _result_12 = parse_input_and_serialize_via_trait(
+            File::open(Path::new(&TestConstants::take_sample_file(
+                "example_of_report_bill_1.csv".to_string(),
+            )))
+            .unwrap(),
+            File::create(Path::new(&TestConstants::get_output_dir_path(
+                "test_circular_csv_mt940_camt053_1.mt940".to_string(),
+            )))
+            .unwrap(),
+            InputParserFormat::CsvExtraFin,
+            OutputParserFormat::Mt940,
+        );
+
+        let _result_13 = parse_input_and_serialize_via_trait(
+            File::open(Path::new(&TestConstants::get_output_dir_path(
+                "test_circular_csv_mt940_camt053_1.mt940".to_string(),
+            )))
+            .unwrap(),
+            File::create(Path::new(&TestConstants::get_output_dir_path(
+                "test_circular_csv_mt940_camt053_2.xml".to_string(),
+            )))
+            .unwrap(),
+            InputParserFormat::Mt940,
+            OutputParserFormat::Camt053,
+        );
+    }
 
     #[test]
-    fn test_parse_camt053() {
+    fn test_render_extra_csv_to_self() {
+        let output_dir: &PathBuf = &TestConstants::get_output_path();
+        std::fs::create_dir_all(&output_dir).unwrap();
+        let _result_4 = parse_input_and_serialize_via_trait(
+            File::open(Path::new(&TestConstants::take_sample_file(
+                "MT940_github_1.mt940".to_string(),
+            )))
+            .unwrap(),
+            File::create(Path::new(&TestConstants::get_output_dir_path(
+                "MT940_github_1.mt940_to_.csv".to_string(),
+            )))
+            .unwrap(),
+            InputParserFormat::Mt940,
+            OutputParserFormat::CsvExtraFin,
+        );
+    }
+
+    #[test]
+    fn test_parse_camt053_to_self() {
         let output_dir: &PathBuf = &TestConstants::get_output_path();
         std::fs::create_dir_all(&output_dir).unwrap();
         // let _result_5 = parse_input_and_serialize_via_trait(
@@ -151,19 +183,6 @@ mod tests {
         //     InputParserFormat::Camt053,
         //     OutputParserFormat::Mt940,
         // );
-        //     let _result_6 = parse_input_and_serialize_via_trait(
-        //     File::open(Path::new(&TestConstants::take_sample_file(
-        //         "camt053_dk_example.xml".to_string(),
-        //     )))
-        //     .unwrap(),
-        //     File::create(Path::new(&TestConstants::get_output_dir_path(
-        //         "camt053_dk_example_camt_to_yaml.txt".to_string(),
-        //     )))
-        //     .unwrap(),
-        //     InputParserFormat::Camt053,
-        //     OutputParserFormat::Yaml,
-        // );
-
         let _result_7 = parse_input_and_serialize_via_trait(
             File::open(Path::new(&TestConstants::take_sample_file(
                 "camt_053_danske_bank.xml".to_string(),
@@ -176,22 +195,5 @@ mod tests {
             InputParserFormat::Camt053,
             OutputParserFormat::Camt053,
         );
-
-        // let _result_8 = parse_input_and_serialize_via_trait(
-        //     File::open(Path::new(&TestConstants::take_sample_file(
-        //         "camt_053_treasurease.xml".to_string(),
-        //     )))
-        //     .unwrap(),
-        //     File::create(Path::new(&TestConstants::get_output_dir_path(
-        //         "camt_053_treasurease.xml_yaml.txt".to_string(),
-        //     )))
-        //     .unwrap(),
-        //     InputParserFormat::Camt053,
-        //     OutputParserFormat::Yaml,
-        // );
-
-        // let mut reader_from_file = BufReader::new(input_file);
-        // let output_writer_stdout = BufWriter::new(stdout());
-        // let reader_from_sdtdio: BufReader<std::io::Stdin> = BufReader::new(stdin());
     }
 }
