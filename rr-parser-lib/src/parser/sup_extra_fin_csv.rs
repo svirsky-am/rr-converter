@@ -83,15 +83,9 @@ pub fn parsr_csv_str(input_data: String) -> anyhow::Result<Vec<Transaction>> {
             (false, false) => (0.0, BalanceAdjustType::WithoutInfo),
         };
 
-        // let credit_debit = match get_text(ntry, (NS, "CdtDbtInd")).as_str(){
-        //     "DBIT" => common::BalanceAdjustType::Debit,
-        //     "CRDT" => common::BalanceAdjustType::Credit,
-        //     _ => common::BalanceAdjustType::WithoutInfo
-        // };
-        // let (amount, credit_debit) = (0.0, "Err parse. Empty transaction".to_string());
-
         let doc_number = record.get(14).unwrap_or("").trim().to_string();
-        let id_transaction: u128 = doc_number.parse().unwrap_or(0);
+        // let id_transaction: u128 = doc_number.parse().unwrap_or(0);
+        let id_transaction: String = doc_number;
         let service_bank = record
             .get(17)
             .unwrap_or("")

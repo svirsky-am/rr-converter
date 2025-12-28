@@ -253,7 +253,7 @@ impl UniParser {
         let statement_period_start = NaiveDateTime::parse_from_str(&statement_period_start_str, "%Y-%m-%dT%H:%M:%S").unwrap();
         let statement_period_end_str = find_nested_text(fr_to_dt, &[(NS, "ToDtTm")]);
         let statement_period_end = NaiveDateTime::parse_from_str(&statement_period_end_str, "%Y-%m-%dT%H:%M:%S").unwrap();
-        let id: u128 = 0;
+        // let id: u128 = 0;
 
         // Balances
         let mut balances = Vec::new();
@@ -301,6 +301,7 @@ impl UniParser {
         // Transactions
         let mut transactions = Vec::new();
         for ntry in stmt.children().filter(|n| n.has_tag_name((NS, "Ntry"))) {
+            let id = "non_id".to_owned();
             let amt_node = ntry
                 .children()
                 .find(|n| n.has_tag_name((NS, "Amt")))
