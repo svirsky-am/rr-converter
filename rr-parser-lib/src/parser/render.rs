@@ -1,20 +1,20 @@
 use chrono::{Datelike, NaiveDate};
 
-use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
 use quick_xml::Writer;
+use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
 use std::cell::RefCell;
 use std::io::Cursor;
-use std::rc::{Rc};
+use std::rc::Rc;
 
-use crate::parser::common::Transaction;
 use crate::parser::{Wallet, common::BalanceAdjustType};
 
-pub fn render_content_as_yaml(input_vec: Vec<Wallet>) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+pub fn render_content_as_yaml(
+    input_vec: Vec<Wallet>,
+) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     // let mut result_content = String::from("---\n");
     let iner_result_content = serde_yaml::to_string(&input_vec).unwrap();
     Ok(iner_result_content.as_bytes().to_vec())
 }
-
 
 type SharedDepth = Rc<RefCell<usize>>;
 
@@ -26,7 +26,7 @@ pub struct RrXmlTag {
 }
 
 impl RrXmlTag {
- pub fn open(
+    pub fn open(
         node_name: String,
         writer: &mut Writer<Cursor<Vec<u8>>>,
         depth_ref: SharedDepth,
@@ -45,7 +45,7 @@ impl RrXmlTag {
         })
     }
 
-    pub fn close(mut self) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn close(self) -> Result<(), Box<dyn std::error::Error>> {
         let writer = unsafe { &mut *self.writer };
         let depth_ref = self.depth_ref;
 
@@ -59,7 +59,10 @@ impl RrXmlTag {
     }
 }
 
-fn write_indent(writer: &mut Writer<Cursor<Vec<u8>>>, level: usize) -> Result<(), Box<dyn std::error::Error>> {
+fn write_indent(
+    writer: &mut Writer<Cursor<Vec<u8>>>,
+    level: usize,
+) -> Result<(), Box<dyn std::error::Error>> {
     let indent = "  ".repeat(level);
     writer.write_event(Event::Text(BytesText::from_escaped(&indent)))?;
     Ok(())
@@ -79,14 +82,12 @@ fn add_child_event_with_text(
     Ok(())
 }
 
-
-
 fn add_child_event_with_attrs_and_text(
     writer: &mut Writer<Cursor<Vec<u8>>>,
     depth: usize,
     node_name: &str,
     node_text: &str,
-    inner_attr: (&str, &str)
+    inner_attr: (&str, &str),
 ) -> Result<(), Box<dyn std::error::Error>> {
     write_indent(writer, depth)?;
 
@@ -101,9 +102,9 @@ fn add_child_event_with_attrs_and_text(
     Ok(())
 }
 
-
-
-pub fn render_content_as_camt053(input_vec: Vec<Wallet>) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+pub fn render_content_as_camt053(
+    input_vec: Vec<Wallet>,
+) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     let mut writer = Writer::new(Cursor::new(Vec::new()));
     let depth_ref = Rc::new(RefCell::new(0));
 
@@ -121,7 +122,7 @@ pub fn render_content_as_camt053(input_vec: Vec<Wallet>) -> Result<Vec<u8>, Box<
     document.push_attribute(("xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance"));
     document.push_attribute((
         "xsi:schemaLocation",
-        "urn:iso:std:iso:20022:tech:xsd:camt.053.001.02 camt.053.001.02.xsd"
+        "urn:iso:std:iso:20022:tech:xsd:camt.053.001.02 camt.053.001.02.xsd",
     ));
     writer.write_event(Event::Start(document))?;
     writer.write_event(Event::Text(BytesText::from_escaped("\n")))?;
@@ -134,7 +135,8 @@ pub fn render_content_as_camt053(input_vec: Vec<Wallet>) -> Result<Vec<u8>, Box<
             .format("%Y-%m-%dT%H:%M:%S")
             .to_string();
 
-        let bk_to_cstmr_stmt_tag = RrXmlTag::open("BkToCstmrStmt".to_string(), &mut writer, depth_ref.clone())?;
+        let bk_to_cstmr_stmt_tag =
+            RrXmlTag::open("BkToCstmrStmt".to_string(), &mut writer, depth_ref.clone())?;
 
         {
             let grp_hdr_tag = RrXmlTag::open("GrpHdr".to_string(), &mut writer, depth_ref.clone())?;
@@ -148,18 +150,25 @@ pub fn render_content_as_camt053(input_vec: Vec<Wallet>) -> Result<Vec<u8>, Box<
             add_child_event_with_text(&mut writer, *depth_ref.borrow(), "Id", statement_id)?;
             add_child_event_with_text(&mut writer, *depth_ref.borrow(), "CreDtTm", &creation_time)?;
 
-            let fr_to_dt_tag = RrXmlTag::open("FrToDt".to_string(), &mut writer, depth_ref.clone())?;
+            let fr_to_dt_tag =
+                RrXmlTag::open("FrToDt".to_string(), &mut writer, depth_ref.clone())?;
             add_child_event_with_text(
                 &mut writer,
                 *depth_ref.borrow(),
                 "FrDtTm",
-                &cash_statement_data.statement_period_start.format("%Y-%m-%dT%H:%M:%S").to_string(),
+                &cash_statement_data
+                    .statement_period_start
+                    .format("%Y-%m-%dT%H:%M:%S")
+                    .to_string(),
             )?;
             add_child_event_with_text(
                 &mut writer,
                 *depth_ref.borrow(),
                 "ToDtTm",
-                &cash_statement_data.statement_period_end.format("%Y-%m-%dT%H:%M:%S").to_string(),
+                &cash_statement_data
+                    .statement_period_end
+                    .format("%Y-%m-%dT%H:%M:%S")
+                    .to_string(),
             )?;
             fr_to_dt_tag.close()?;
 
@@ -181,75 +190,102 @@ pub fn render_content_as_camt053(input_vec: Vec<Wallet>) -> Result<Vec<u8>, Box<
             // id_tag.close()?;
             id_tag.close()?;
             acct_tag.close()?;
-            {  // openig balace
-                let open_bal_tag = RrXmlTag::open("Bal".to_string(), &mut writer, depth_ref.clone())?;
+            {
+                // openig balace
+                let open_bal_tag =
+                    RrXmlTag::open("Bal".to_string(), &mut writer, depth_ref.clone())?;
                 // let open_amt_tag = RrXmlTag::open("Amt".to_string(), &mut writer, depth_ref.clone())?;
                 add_child_event_with_attrs_and_text(
                     &mut writer,
                     *depth_ref.borrow(),
                     "Amt",
-                    &cash_statement_data.opening_balance.clone().unwrap().amount.to_string(),
-                    ("Ccy", &cash_statement_data.currency )
+                    &cash_statement_data
+                        .opening_balance
+                        .clone()
+                        .unwrap()
+                        .amount
+                        .to_string(),
+                    ("Ccy", &cash_statement_data.currency),
                 )?;
-                let open_dt = match &cash_statement_data.opening_balance.clone().unwrap().credit_debit {
+                let open_dt = match &cash_statement_data
+                    .opening_balance
+                    .clone()
+                    .unwrap()
+                    .credit_debit
+                {
                     BalanceAdjustType::Debit => "DBIT",
                     BalanceAdjustType::Credit => "CRDT",
                     BalanceAdjustType::WithoutInfo => "DBIT",
-                                }; 
-                add_child_event_with_text(
-                    &mut writer,
-                    *depth_ref.borrow(),
-                    "CdtDbtInd",
-                    open_dt
-
-                )?;
-                let open_dt_1_tag = RrXmlTag::open("Dt".to_string(), &mut writer, depth_ref.clone())?;
+                };
+                add_child_event_with_text(&mut writer, *depth_ref.borrow(), "CdtDbtInd", open_dt)?;
+                let open_dt_1_tag =
+                    RrXmlTag::open("Dt".to_string(), &mut writer, depth_ref.clone())?;
                 add_child_event_with_text(
                     &mut writer,
                     *depth_ref.borrow(),
                     "Dt",
-                    &cash_statement_data.opening_balance.clone().unwrap().date.format("%Y-%m-%d").to_string()
-
+                    &cash_statement_data
+                        .opening_balance
+                        .clone()
+                        .unwrap()
+                        .date
+                        .format("%Y-%m-%d")
+                        .to_string(),
                 )?;
                 open_dt_1_tag.close()?;
                 open_bal_tag.close()?;
 
                 // closeig balace
-                let close_bal_tag = RrXmlTag::open("Bal".to_string(), &mut writer, depth_ref.clone())?;
+                let close_bal_tag =
+                    RrXmlTag::open("Bal".to_string(), &mut writer, depth_ref.clone())?;
                 // let close_amt_tag = RrXmlTag::close("Amt".to_string(), &mut writer, depth_ref.clone())?;
                 add_child_event_with_text(
                     &mut writer,
                     *depth_ref.borrow(),
                     "Amt",
-                    &cash_statement_data.closing_balance.clone().unwrap().amount.to_string()
-                    // &cash_statement_data.dbt_crdt,
+                    &cash_statement_data
+                        .closing_balance
+                        .clone()
+                        .unwrap()
+                        .amount
+                        .to_string(), // &cash_statement_data.dbt_crdt,
                 )?;
                 add_child_event_with_attrs_and_text(
                     &mut writer,
                     *depth_ref.borrow(),
                     "Amt",
-                    &cash_statement_data.closing_balance.clone().unwrap().amount.to_string(),
-                    ("Ccy", &cash_statement_data.currency )
+                    &cash_statement_data
+                        .closing_balance
+                        .clone()
+                        .unwrap()
+                        .amount
+                        .to_string(),
+                    ("Ccy", &cash_statement_data.currency),
                 )?;
-                let close_dt = match &cash_statement_data.closing_balance.clone().unwrap().credit_debit {
+                let close_dt = match &cash_statement_data
+                    .closing_balance
+                    .clone()
+                    .unwrap()
+                    .credit_debit
+                {
                     BalanceAdjustType::Debit => "DBIT",
                     BalanceAdjustType::Credit => "CRDT",
                     BalanceAdjustType::WithoutInfo => "DBIT",
-                                }; 
-                add_child_event_with_text(
-                    &mut writer,
-                    *depth_ref.borrow(),
-                    "CdtDbtInd",
-                    close_dt
-
-                )?;
-                let close_dt_1_tag = RrXmlTag::open("Dt".to_string(), &mut writer, depth_ref.clone())?;
+                };
+                add_child_event_with_text(&mut writer, *depth_ref.borrow(), "CdtDbtInd", close_dt)?;
+                let close_dt_1_tag =
+                    RrXmlTag::open("Dt".to_string(), &mut writer, depth_ref.clone())?;
                 add_child_event_with_text(
                     &mut writer,
                     *depth_ref.borrow(),
                     "Dt",
-                    &cash_statement_data.closing_balance.clone().unwrap().date.format("%Y-%m-%d").to_string()
-
+                    &cash_statement_data
+                        .closing_balance
+                        .clone()
+                        .unwrap()
+                        .date
+                        .format("%Y-%m-%d")
+                        .to_string(),
                 )?;
                 close_dt_1_tag.close()?;
                 close_bal_tag.close()?;
@@ -257,43 +293,45 @@ pub fn render_content_as_camt053(input_vec: Vec<Wallet>) -> Result<Vec<u8>, Box<
             {
                 let mut transaction_count = 1;
                 for tr in &cash_statement_data.transactions {
-
-                    let ntry_tag = RrXmlTag::open("Ntry".to_string(), &mut writer, depth_ref.clone())?;
+                    let ntry_tag =
+                        RrXmlTag::open("Ntry".to_string(), &mut writer, depth_ref.clone())?;
                     add_child_event_with_text(
                         &mut writer,
                         *depth_ref.borrow(),
                         "NtryRef",
                         &transaction_count.to_string(),
                     )?;
-                    // let d_c = 
+                    // let d_c =
                     let d_c = match &tr.credit_debit {
                         BalanceAdjustType::Debit => "DBIT",
                         BalanceAdjustType::Credit => "CRDT",
                         BalanceAdjustType::WithoutInfo => "DBIT",
-                                    }; 
+                    };
                     add_child_event_with_attrs_and_text(
                         &mut writer,
                         *depth_ref.borrow(),
                         "Amt",
                         &tr.amount.to_string(),
-                        ("Ccy", &tr.currency )
+                        ("Ccy", &tr.currency),
                     )?;
-                    add_child_event_with_text(
-                        &mut writer,
-                        *depth_ref.borrow(),
-                        "CdtDbtInd",
-                        d_c,
-                    )?;
+                    add_child_event_with_text(&mut writer, *depth_ref.borrow(), "CdtDbtInd", d_c)?;
                     add_child_event_with_text(
                         &mut writer,
                         *depth_ref.borrow(),
                         "AcctSvcrRef",
                         &tr.service_bank,
                     )?;
-                    let BkTxCd_tag = RrXmlTag::open("BkTxCd".to_string(), &mut writer, depth_ref.clone())?;
-                    let domn_tag = RrXmlTag::open("Domn".to_string(), &mut writer, depth_ref.clone())?;
-                    let domn_cd_tag = RrXmlTag::open("Cd".to_string(), &mut writer, depth_ref.clone())?;
-                    let transaction_type = &tr.transaction_type.clone().unwrap_or("None".to_string()).to_string();
+                    let _bk_tx_cd_tag =
+                        RrXmlTag::open("BkTxCd".to_string(), &mut writer, depth_ref.clone())?;
+                    let domn_tag =
+                        RrXmlTag::open("Domn".to_string(), &mut writer, depth_ref.clone())?;
+                    let domn_cd_tag =
+                        RrXmlTag::open("Cd".to_string(), &mut writer, depth_ref.clone())?;
+                    let transaction_type = &tr
+                        .transaction_type
+                        .clone()
+                        .unwrap_or("None".to_string())
+                        .to_string();
                     add_child_event_with_text(
                         &mut writer,
                         *depth_ref.borrow(),
@@ -303,27 +341,25 @@ pub fn render_content_as_camt053(input_vec: Vec<Wallet>) -> Result<Vec<u8>, Box<
                     let _ = domn_cd_tag.close();
                     let _ = domn_tag.close();
 
-
-                    let _prtry_tag = RrXmlTag::open("Prtry".to_string(), &mut writer, depth_ref.clone())?;
-                    let tr_direction = match &tr.credit_debit  {
+                    let _prtry_tag =
+                        RrXmlTag::open("Prtry".to_string(), &mut writer, depth_ref.clone())?;
+                    let tr_direction = match &tr.credit_debit {
                         BalanceAdjustType::Debit => &tr.debit_account,
                         BalanceAdjustType::Credit => &tr.credit_account,
                         BalanceAdjustType::WithoutInfo => &tr.credit_account,
-
                     };
                     add_child_event_with_text(
                         &mut writer,
                         *depth_ref.borrow(),
                         "Cd",
                         tr_direction,
-                    )?;                 
+                    )?;
                     let _ = _prtry_tag.close()?;
-                    
+
                     transaction_count += 1;
                     ntry_tag.close()?;
                 }
             }
-            
 
             stmt_tag.close()?;
         }
@@ -337,37 +373,40 @@ pub fn render_content_as_camt053(input_vec: Vec<Wallet>) -> Result<Vec<u8>, Box<
 
     let xml_bytes = writer.into_inner().into_inner();
     Ok(xml_bytes)
-
-    
 }
 
-pub fn render_content_as_mt940(input_vec: Vec<Wallet>) -> Result<Vec<u8>, Box<dyn std::error::Error>>{
+pub fn render_content_as_mt940(
+    input_vec: Vec<Wallet>,
+) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     let mut iner_result_content = String::new();
     for cash_statement_data in &input_vec {
-        let date_of_statemant = cash_statement_data
-            .creation_time
-            .clone()
-            .unwrap();
+        let _date_of_statemant = cash_statement_data.creation_time.clone().unwrap();
         let account_id = &cash_statement_data.id;
         let bank_maintainer = &cash_statement_data.bank_maintainer;
 
         let account_name = &cash_statement_data.account;
-        let currency: &String = &cash_statement_data.currency;
-        dbg!(&cash_statement_data);
+        let _currency: &String = &cash_statement_data.currency;
+        // dbg!(&cash_statement_data);
         let statement_id = &cash_statement_data.statement_id;
-        let statement_start_format = cash_statement_data.statement_period_start.date().format("%y%m%d").to_string();
-        
+        let _statement_start_format = cash_statement_data
+            .statement_period_start
+            .date()
+            .format("%y%m%d")
+            .to_string();
+
         let opening_balance = &cash_statement_data.opening_balance.clone().unwrap();
         let open_balance_amount = opening_balance.amount.to_string().replace(".", ",");
         let open_balance_data = opening_balance.date.format("%y%m%d").to_string();
         let open_balance_currency = &opening_balance.currency;
 
-        iner_result_content.push_str(&format!("{{1:F01{bank_maintainer}0000000000}}{{2:O940{bank_maintainer}N}}{{3:}}{{4:
+        iner_result_content.push_str(&format!(
+            "{{1:F01{bank_maintainer}0000000000}}{{2:O940{bank_maintainer}N}}{{3:}}{{4:
 :20:{account_id}
 :25:{account_name}
 :28C:{statement_id}
 :60F:C{open_balance_data}{open_balance_currency}{open_balance_amount}
-"));
+"
+        ));
         // dbg!(&cash_statement_data);
         // iner_result_content.push_str("\n>>> START TRANSACTIONS <<<\n");
         for tr in &cash_statement_data.transactions {
@@ -375,20 +414,17 @@ pub fn render_content_as_mt940(input_vec: Vec<Wallet>) -> Result<Vec<u8>, Box<dy
             let date_time = tr.date_time.format("%y%m%d%m%d").to_string();
             let amount = tr.amount.to_string().replace(".", ",");
 
-            let transaction_type = tr.transaction_type.clone().unwrap(); 
-            let transaction_id = &tr.id; 
-            // tr.transaction_type.clone().unwrap().chars().take(3) 
-            let (debit_credit, tr_direction)  = match tr.credit_debit {
-                BalanceAdjustType::Debit => {
-                    ("D".to_owned(), tr.credit_account.clone())
-                }
+            // let transaction_type = tr.transaction_type.clone().unwrap();
+            let transaction_type = tr.transaction_type.clone().unwrap_or("non".to_owned());
+            let _transaction_id = &tr.id;
+            // tr.transaction_type.clone().unwrap().chars().take(3)
+            let (debit_credit, tr_direction) = match tr.credit_debit {
+                BalanceAdjustType::Debit => ("D".to_owned(), tr.credit_account.clone()),
 
-                BalanceAdjustType::Credit => {
-                    ("C".to_owned(), tr.debit_account.clone())
-                }
+                BalanceAdjustType::Credit => ("C".to_owned(), tr.debit_account.clone()),
                 BalanceAdjustType::WithoutInfo => ("C".to_owned(), tr.credit_account.clone()),
             };
-            let description  = &tr.purpose;
+            let description = &tr.purpose;
             iner_result_content.push_str(&format!(
                 ":61:{date_time}R{debit_credit}{amount}N{transaction_type}{tr_direction}
 :86:{description}\n"
@@ -399,13 +435,24 @@ pub fn render_content_as_mt940(input_vec: Vec<Wallet>) -> Result<Vec<u8>, Box<dy
         let closing_balance_amount = closing_balance.amount.to_string().replace(".", ",");
         let closing_balance_data = closing_balance.date.format("%y%m%d").to_string();
         let closing_balance_currency = &closing_balance.currency;
-        
-        let statement_end_format = cash_statement_data.statement_period_end.date().format("%y%m%d").to_string();
+
+        let _statement_end_format = cash_statement_data
+            .statement_period_end
+            .date()
+            .format("%y%m%d")
+            .to_string();
         // let closing_balance_amount = &cash_statement_data.closing_balance.clone().unwrap().amount.to_string();
         // let closing_balance_date = &cash_statement_data.closing_balance.clone().unwrap().date.format("%Y-%m-%d").to_string();
 
-        iner_result_content.push_str(&format!(":62F:C{closing_balance_data}{closing_balance_currency}{closing_balance_amount}
--}}{{5:}}\n" ));
+        iner_result_content.push_str(&format!(
+            ":62F:C{closing_balance_data}{closing_balance_currency}{closing_balance_amount}
+-}}{{5:}}\n"
+        ));
+        // iner_result_content.push_str("\n>>> end TRANSACTIONS <<<\n");
+        iner_result_content.push_str(&format!(
+            ":62F:C{closing_balance_data}{closing_balance_currency}{closing_balance_amount}
+-}}{{5:}}\n"
+        ));
         // iner_result_content.push_str("\n>>> end TRANSACTIONS <<<\n");
     }
 
@@ -416,30 +463,48 @@ pub fn render_content_as_mt940(input_vec: Vec<Wallet>) -> Result<Vec<u8>, Box<dy
 
 fn format_russian_naive_date(input_date: NaiveDate) -> String {
     static MONTHS: [&str; 12] = [
-        "января", "февраля", "марта", "апреля", "мая", "июня",
-        "июля", "августа", "сентября", "октября", "ноября", "декабря",
+        "января",
+        "февраля",
+        "марта",
+        "апреля",
+        "мая",
+        "июня",
+        "июля",
+        "августа",
+        "сентября",
+        "октября",
+        "ноября",
+        "декабря",
     ];
-    let m_index = input_date.month().to_string().parse::<usize>().unwrap() -1;
+    let m_index = input_date.month().to_string().parse::<usize>().unwrap() - 1;
     let month_name = MONTHS[m_index];
-    format!("{:02} {} {}", input_date.day(), month_name, input_date.year())
+    format!(
+        "{:02} {} {}",
+        input_date.day(),
+        month_name,
+        input_date.year()
+    )
 }
 
-pub fn render_content_as_csv_extra_fin(input_vec: Vec<Wallet>) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+pub fn render_content_as_csv_extra_fin(
+    input_vec: Vec<Wallet>,
+) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     let mut iner_result_content = String::new();
     for cash_statement_data in &input_vec {
-        let datetime_of_statemant = cash_statement_data
-            .creation_time
-            .clone()
-            .unwrap();
+        let datetime_of_statemant = cash_statement_data.creation_time.clone().unwrap();
         let creation_date = &datetime_of_statemant.format("%d.%m.%Y").to_string();
-        let creation_datetime = &datetime_of_statemant.format("%d.%m.%Y в %H:%M:%S").to_string();
+        let creation_datetime = &datetime_of_statemant
+            .format("%d.%m.%Y в %H:%M:%S")
+            .to_string();
         let account_id = &cash_statement_data.id;
         let account_name = &cash_statement_data.account;
         let bank_maintainer = &cash_statement_data.bank_maintainer;
         let currency = &cash_statement_data.currency;
         let statement_id = &cash_statement_data.statement_id;
-        let statement_period_start = format_russian_naive_date(cash_statement_data.statement_period_start.date());
-        let statement_period_end = format_russian_naive_date(cash_statement_data.statement_period_end.date());
+        let statement_period_start =
+            format_russian_naive_date(cash_statement_data.statement_period_start.date());
+        let statement_period_end =
+            format_russian_naive_date(cash_statement_data.statement_period_end.date());
         iner_result_content.push_str(&format!(",,,,,,,,,,,,,,,,,,,,,,
 ,{creation_date},,,,СберБизнес. {statement_id},,,,,,,,,,,,,,,,,
 ,\"{bank_maintainer}\",,,,,,,,,,,,,,,,,,,,,
@@ -487,15 +552,12 @@ pub fn render_content_as_csv_extra_fin(input_vec: Vec<Wallet>) -> Result<Vec<u8>
         let opening_balance = &cash_statement_data.opening_balance.clone().unwrap();
         let open_balance_amount = opening_balance.amount.to_string().replace(".", ",");
         // let open_balance_data = opening_balance.date.format("%y%m%d").to_string();
-        let open_balance_currency = &opening_balance.currency;
         let closing_balance = &cash_statement_data.closing_balance.clone().unwrap();
         let closing_balance_amount = closing_balance.amount.to_string().replace(".", ",");
-        // let closing_balance_data = closing_balance.date.format("%y%m%d").to_string();
-        let closing_balance_currency = &closing_balance.currency;
-        
+        // let closing_balance_currency = &closing_balance.currency;
+
         let open_balance_data_format = format_russian_naive_date(opening_balance.date);
         let closing_balance_format = format_russian_naive_date(closing_balance.date);
-
 
         iner_result_content.push_str(&format!(",,,,,,,,,,,,,,,,,,,,,,,
 ,б/с,,40702,,,,Дебет,,,,Кредит,,,,,,,,Всего,,,
@@ -509,7 +571,6 @@ pub fn render_content_as_csv_extra_fin(input_vec: Vec<Wallet>) -> Result<Vec<u8>
         ));
     }
     // let opening_balance = &cash_statement_data.opening_balance.clone().unwrap();
-
 
     Ok(iner_result_content.as_bytes().to_vec())
 }

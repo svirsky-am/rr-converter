@@ -3,7 +3,7 @@ use std::fs::File;
 use std::io::{self, BufReader, BufWriter};
 use std::path::Path;
 
-use rr_parser_lib::{parse_input_and_serialize_via_trait, InputParserFormat, OutputParserFormat}; // Import io for Result
+use rr_parser_lib::{InputParserFormat, OutputParserFormat, parse_input_and_serialize_via_trait}; // Import io for Result
 
 // fn test_real_file_reading() -> Result<(), Box<dyn std::error::Error>> {
 //         let test_file = Path::new("tests/test_files/hello.txt");
@@ -25,21 +25,22 @@ fn test_real_file_reading() {
 
     // let content = rr_parser_lib::read_file(test_file).expect("Failed to read test file");
 
-    let input_file = File::open(Path::new("../tests/test_files/example_of_report_bill_1.csv")).unwrap();
-        
+    let input_file = File::open(Path::new(
+        "../tests/test_files/example_of_report_bill_1.csv",
+    ))
+    .unwrap();
+
     let reader_from_file = BufReader::new(input_file);
 
     // Create a new file (this will overwrite if it already exists)
     // let output_file_path = Path::new("output/csv_to_csv.txt");
 
-
     let output_file = Path::new("output/rust_1.txt");
     let parent_dir = output_file.parent().unwrap();
-    // let parent_dir = output_dir_as_path.parent().unwrap()    
+    // let parent_dir = output_dir_as_path.parent().unwrap()
     std::fs::create_dir_all(parent_dir).unwrap();
     let outputfile = File::create(output_file).unwrap();
     // let output_dir_as_path: &Path = output_dir.as_path();
-
 
     let mut output_writer_file = BufWriter::new(outputfile);
     let _result_1 = parse_input_and_serialize_via_trait(
@@ -49,8 +50,6 @@ fn test_real_file_reading() {
         OutputParserFormat::Yaml,
     );
     assert!(_result_1.is_ok());
-
-    
 
     // assert_eq!(
     //     content.trim(),
