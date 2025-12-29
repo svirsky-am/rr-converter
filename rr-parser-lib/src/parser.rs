@@ -28,6 +28,9 @@ struct UniParser {
 // }
 // use roxmltree::{Document, Node}
 
+// ^^^ от таких комментариекв лучше код почистить :) Воспринимается тяжело, а ты
+// можешь в любом случае откатиться на старую ревизию, чтобы восстановить этот код :)
+
 // #[derive(Serialize, Debug, Clone)]
 #[derive(PartialEq, Debug, Clone, Serialize)]
 struct Wallet {
@@ -60,6 +63,8 @@ impl Default for Wallet {
             statement_period_end: DateTime::from_timestamp(4_102_444_800, 0)
                 .unwrap()
                 .naive_utc(),
+            // ^^^ от таких .unwrap() в рантайме легко избавиться, если сделать константу:
+            // const STATEMENTS_PERIOD_END: DateTime = DateTime::from_timestamp(4_102_444_800, 0).expect("checked at compile time");
             creation_time: Some(
                 DateTime::from_timestamp(4_102_444_800, 0)
                     .unwrap()
@@ -98,10 +103,17 @@ impl UniParser {
         let mut account_data = Wallet::new(7, "csv from str".to_owned());
 
         let parts: Vec<&str> = input.split(",,,,,,,,,,,,,,,,,,,,,,\n").collect();
+        // ^^^ там действительно такие длинные сепараторы? Может давай ограничимся
+        // csv-файлом, в котором просто через запятую перечислены поля структуры Wallet?
+        // Как я уже сказал, очень сложные файлы даны в качестве примера - давай сделаем
+        // рабочую программу, пусть даже со своим csv форматом :)
 
         let sratemnts_header = parts[1];
 
         let currency_by_header = std::rc::Rc::new("TODO рубли".to_string());
+
+        // ^^^ посмотри плиз на все TODO перед тем, как сдавать
+        
         // let match_header_parser = regex::Regex::new(r"\,(.*)\,\,\,\,(\s+).*\n")?;
         let match_header_parser = regex::Regex::new(
             r"(?x)
@@ -116,6 +128,12 @@ impl UniParser {
 
             "
         ).unwrap();
+
+        // ^^^ в таких случааях лучше использовать .expect() с описанием - почему
+        // паники никогда не случится. В стиле .expect("this regex is tested by unit tests; qed")
+        // Есть ещё крейт https://crates.io/crates/lazy_regex, который проверит regex
+        // во время компиляции, а не в рантайме
+
         if let Some(caps) = match_header_parser.captures(input) {
             let creation_time_str = String::from(&caps["data_creation"]);
             let result_creation_sate_time =
@@ -134,6 +152,11 @@ impl UniParser {
                     .unwrap()
                     .and_hms_opt(0, 0, 0)
                     .unwrap();
+
+            // ^^^ тоже unwrap - надо вернуть ошибку вместо этого. В других местах тоже.
+            // unwrap допустимы в тестах и в бинарях близко к main, где всё что мы можем
+            // сделать - это показать ошибку пользователю
+
             account_data.statement_period_end =
                 parse_russian_date(&String::from(&caps["statement_period_end"]))
                     .unwrap()
@@ -161,6 +184,8 @@ impl UniParser {
         ));
         let mut file_dbg_bracked_csv = std::fs::File::create(output_dbg_bracked_csv).unwrap();
         let _ = file_dbg_bracked_csv.write_all(bracked_csv.as_bytes());
+
+        // ^^^ dbg выводы лучше как-то явно обозначить :)
 
         let normalyzed_csv_str = sup_extra_fin_csv::normalyze_csv_str(bracked_csv.to_owned());
         // dbg!(&normalyzed_csv_str);
@@ -217,6 +242,10 @@ impl UniParser {
     }
 
     fn parse_camt053_from_str(&mut self, input: &str) -> anyhow::Result<Vec<Wallet>> {
+        // ^^^ anyhow ошибки лучше использоват в бинарях, а в библиотеках - свой enum Error
+        // с #[derive(thiserror::Error)]. Это позволит вызывающему коду умно обработать
+        // ошибку. С anyhow этого сделать нельзя. По сути - это строка.
+        // Но тоже не буду к этому придираться :)
         const NS: &str = "urn:iso:std:iso:20022:tech:xsd:camt.053.001.02";
         use roxmltree::Document;
         use sup_camp053::{find_nested_text, get_text};
@@ -658,6 +687,9 @@ impl FinConverter {
             OutputParserFormat::Camt053 => render::render_content_as_camt053(parsed_account_data),
             OutputParserFormat::Mt940 => render::render_content_as_mt940(parsed_account_data),
         };
+
+        // ^^^ вот тут - клёво. Я бы, если честно, вот это и оставил в parse_input_and_serialize_via_trait,
+        // убрав всю flush-магию :) Но ты - автор, волен делать как хочешь :)
 
         self.output_bytes = rendered_result?;
         let mut output_format_str = format!("output_format: {}\n", self.process_output_type)
