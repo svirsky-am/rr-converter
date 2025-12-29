@@ -6,7 +6,6 @@ use std::fs::{self, File};
 use std::io::{self, BufReader, Write};
 use std::path::Path;
 
-// #[derive(Parser)]
 pub struct Cli {
     pub input: String,
     pub output: String,
@@ -76,22 +75,9 @@ fn parse_output_format_clap(s: &str) -> Result<OutputParserFormat, rr_parser_lib
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = parse_cli()?;
-    // let input_content = read_input(&cli.input)?;
-    // let in_format = parse_input(&input_content, &cli.in_format)?;
-    // let output_content = serialize_output(&data, &cli.out_format)?;
-    // write_output(&cli.output, &output_content, &cli.out_format)?;
-
-    // parse_input_and_serialize_via_trait(&input_content, &cli.in_format, &cli.out_format,  &cli.output )?;
-
     let process_input_type: InputParserFormat = cli.in_format;
     let process_output_type = cli.out_format;
 
-    //     mut input_buff_reader: TypeOfBuffInput,
-    //     mut output_buff_writer: TypeOfBuffOutput,
-    //     process_input_type: InputParserFormat,
-    //     process_output_type: OutputParserFormat,
-    // ) -> Result<()> {
-    // Create our transformer
     let mut converter = FinConverter::new(process_input_type, process_output_type);
 
     let mut reader_from_sdtdio: BufReader<std::io::Stdin> = BufReader::new(io::stdin());
@@ -100,12 +86,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     dbg!(&cli.input);
     dbg!(&cli.input);
 
-    // 1️⃣ Read CSV from stdin using Read trait (via copy)
     match &cli.input == dash_string {
         true => {
             dbg!("try to read from sdtio");
             std::io::copy(&mut reader_from_sdtdio, &mut converter)?
-            // std::io::copy(&mut input_buff_reader, &mut converter)?
         }
         false => {
             dbg!("try to read from file");
@@ -115,9 +99,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    // std::io::copy(&mut input_buff_reader, &mut converter)?;
-
-    // 2️⃣ Flush to trigger parsing (optional — Read will trigger it too)
     converter.flush()?;
     let mut output_writer_stdout = io::BufWriter::new(io::stdout());
 
