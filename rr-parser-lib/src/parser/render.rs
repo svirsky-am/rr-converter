@@ -11,8 +11,7 @@ use crate::parser::{Wallet, common::BalanceAdjustType};
 pub fn render_content_as_yaml(
     input_vec: Vec<Wallet>,
 ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-    // let mut result_content = String::from("---\n");
-    let iner_result_content = serde_yaml::to_string(&input_vec).unwrap();
+    let iner_result_content = serde_yaml::to_string(&input_vec).expect("Can't convert to YAML");
     Ok(iner_result_content.as_bytes().to_vec())
 }
 
@@ -93,9 +92,7 @@ fn add_child_event_with_attrs_and_text(
 
     let mut start_tag = BytesStart::new(node_name);
     start_tag.push_attribute((inner_attr.0, inner_attr.1));
-    // start_tag.(attr);
     writer.write_event(Event::Start(start_tag))?;
-    // writer.write_event(Event::Empty(BytesText::from_escaped(node_text)))?;
     writer.write_event(Event::Text(BytesText::from_escaped(node_text)))?;
     writer.write_event(Event::End(BytesEnd::new(node_name)))?;
     writer.write_event(Event::Text(BytesText::from_escaped("\n")))?;
@@ -131,7 +128,7 @@ pub fn render_content_as_camt053(
         let statement_id = &cash_statement_data.statement_id;
         let creation_time = cash_statement_data
             .creation_time
-            .unwrap()
+            .expect("Can't get creation time.")
             .format("%Y-%m-%dT%H:%M:%S")
             .to_string();
 
@@ -187,14 +184,11 @@ pub fn render_content_as_camt053(
                 &cash_statement_data.currency,
             )?;
 
-            // id_tag.close()?;
             id_tag.close()?;
             acct_tag.close()?;
             {
-                // openig balace
                 let open_bal_tag =
                     RrXmlTag::open("Bal".to_string(), &mut writer, depth_ref.clone())?;
-                // let open_amt_tag = RrXmlTag::open("Amt".to_string(), &mut writer, depth_ref.clone())?;
                 add_child_event_with_attrs_and_text(
                     &mut writer,
                     *depth_ref.borrow(),
@@ -202,7 +196,7 @@ pub fn render_content_as_camt053(
                     &cash_statement_data
                         .opening_balance
                         .clone()
-                        .unwrap()
+                        .expect("Can't get balance.")
                         .amount
                         .to_string(),
                     ("Ccy", &cash_statement_data.currency),
@@ -210,7 +204,7 @@ pub fn render_content_as_camt053(
                 let open_dt = match &cash_statement_data
                     .opening_balance
                     .clone()
-                    .unwrap()
+                    .expect("Can't get balance.")
                     .credit_debit
                 {
                     BalanceAdjustType::Debit => "DBIT",
@@ -227,7 +221,7 @@ pub fn render_content_as_camt053(
                     &cash_statement_data
                         .opening_balance
                         .clone()
-                        .unwrap()
+                        .expect("Can't get balance.")
                         .date
                         .format("%Y-%m-%d")
                         .to_string(),
@@ -235,10 +229,8 @@ pub fn render_content_as_camt053(
                 open_dt_1_tag.close()?;
                 open_bal_tag.close()?;
 
-                // closeig balace
                 let close_bal_tag =
                     RrXmlTag::open("Bal".to_string(), &mut writer, depth_ref.clone())?;
-                // let close_amt_tag = RrXmlTag::close("Amt".to_string(), &mut writer, depth_ref.clone())?;
                 add_child_event_with_text(
                     &mut writer,
                     *depth_ref.borrow(),
@@ -246,9 +238,9 @@ pub fn render_content_as_camt053(
                     &cash_statement_data
                         .closing_balance
                         .clone()
-                        .unwrap()
+                        .expect("Can't get balance.")
                         .amount
-                        .to_string(), // &cash_statement_data.dbt_crdt,
+                        .to_string(),
                 )?;
                 add_child_event_with_attrs_and_text(
                     &mut writer,
@@ -257,7 +249,7 @@ pub fn render_content_as_camt053(
                     &cash_statement_data
                         .closing_balance
                         .clone()
-                        .unwrap()
+                        .expect("Can't get balance.")
                         .amount
                         .to_string(),
                     ("Ccy", &cash_statement_data.currency),
@@ -265,7 +257,7 @@ pub fn render_content_as_camt053(
                 let close_dt = match &cash_statement_data
                     .closing_balance
                     .clone()
-                    .unwrap()
+                    .expect("Can't get debet_credit info.")
                     .credit_debit
                 {
                     BalanceAdjustType::Debit => "DBIT",
@@ -282,7 +274,7 @@ pub fn render_content_as_camt053(
                     &cash_statement_data
                         .closing_balance
                         .clone()
-                        .unwrap()
+                        .expect("Can't get datetime of Balance.")
                         .date
                         .format("%Y-%m-%d")
                         .to_string(),
@@ -301,7 +293,6 @@ pub fn render_content_as_camt053(
                         "NtryRef",
                         &transaction_count.to_string(),
                     )?;
-                    // let d_c =
                     let d_c = match &tr.credit_debit {
                         BalanceAdjustType::Debit => "DBIT",
                         BalanceAdjustType::Credit => "CRDT",
@@ -380,13 +371,12 @@ pub fn render_content_as_mt940(
 ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     let mut iner_result_content = String::new();
     for cash_statement_data in &input_vec {
-        let _date_of_statemant = cash_statement_data.creation_time.clone().unwrap();
+        let _date_of_statemant = cash_statement_data.creation_time.clone().expect("Can't get datetime of Balance.");
         let account_id = &cash_statement_data.id;
         let bank_maintainer = &cash_statement_data.bank_maintainer;
 
         let account_name = &cash_statement_data.account;
         let _currency: &String = &cash_statement_data.currency;
-        // dbg!(&cash_statement_data);
         let statement_id = &cash_statement_data.statement_id;
         let _statement_start_format = cash_statement_data
             .statement_period_start
@@ -394,7 +384,7 @@ pub fn render_content_as_mt940(
             .format("%y%m%d")
             .to_string();
 
-        let opening_balance = &cash_statement_data.opening_balance.clone().unwrap();
+        let opening_balance = &cash_statement_data.opening_balance.clone().expect("Can't get datetime of Balance.");
         let open_balance_amount = opening_balance.amount.to_string().replace(".", ",");
         let open_balance_data = opening_balance.date.format("%y%m%d").to_string();
         let open_balance_currency = &opening_balance.currency;
@@ -407,17 +397,12 @@ pub fn render_content_as_mt940(
 :60F:C{open_balance_data}{open_balance_currency}{open_balance_amount}
 "
         ));
-        // dbg!(&cash_statement_data);
-        // iner_result_content.push_str("\n>>> START TRANSACTIONS <<<\n");
         for tr in &cash_statement_data.transactions {
-            // dbg!(&tr);
             let date_time = tr.date_time.format("%y%m%d%m%d").to_string();
             let amount = tr.amount.to_string().replace(".", ",");
 
-            // let transaction_type = tr.transaction_type.clone().unwrap();
             let transaction_type = tr.transaction_type.clone().unwrap_or("non".to_owned());
             let _transaction_id = &tr.id;
-            // tr.transaction_type.clone().unwrap().chars().take(3)
             let (debit_credit, tr_direction) = match tr.credit_debit {
                 BalanceAdjustType::Debit => ("D".to_owned(), tr.credit_account.clone()),
 
@@ -431,7 +416,7 @@ pub fn render_content_as_mt940(
             ));
         }
 
-        let closing_balance = &cash_statement_data.closing_balance.clone().unwrap();
+        let closing_balance = &cash_statement_data.closing_balance.clone().expect("Can't get clising Balance.");
         let closing_balance_amount = closing_balance.amount.to_string().replace(".", ",");
         let closing_balance_data = closing_balance.date.format("%y%m%d").to_string();
         let closing_balance_currency = &closing_balance.currency;
@@ -441,23 +426,17 @@ pub fn render_content_as_mt940(
             .date()
             .format("%y%m%d")
             .to_string();
-        // let closing_balance_amount = &cash_statement_data.closing_balance.clone().unwrap().amount.to_string();
-        // let closing_balance_date = &cash_statement_data.closing_balance.clone().unwrap().date.format("%Y-%m-%d").to_string();
 
         iner_result_content.push_str(&format!(
             ":62F:C{closing_balance_data}{closing_balance_currency}{closing_balance_amount}
 -}}{{5:}}\n"
         ));
-        // iner_result_content.push_str("\n>>> end TRANSACTIONS <<<\n");
         iner_result_content.push_str(&format!(
             ":62F:C{closing_balance_data}{closing_balance_currency}{closing_balance_amount}
 -}}{{5:}}\n"
         ));
-        // iner_result_content.push_str("\n>>> end TRANSACTIONS <<<\n");
     }
 
-    // let mut result_content: Vec<u8> = format!("result_content: {}\n", self)
-    // ;
     Ok(iner_result_content.as_bytes().to_vec())
 }
 
@@ -476,7 +455,7 @@ fn format_russian_naive_date(input_date: NaiveDate) -> String {
         "ноября",
         "декабря",
     ];
-    let m_index = input_date.month().to_string().parse::<usize>().unwrap() - 1;
+    let m_index = input_date.month().to_string().parse::<usize>().expect("Can't parse date as russian fromat.") - 1;
     let month_name = MONTHS[m_index];
     format!(
         "{:02} {} {}",
@@ -491,7 +470,7 @@ pub fn render_content_as_csv_extra_fin(
 ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     let mut iner_result_content = String::new();
     for cash_statement_data in &input_vec {
-        let datetime_of_statemant = cash_statement_data.creation_time.clone().unwrap();
+        let datetime_of_statemant = cash_statement_data.creation_time.clone().expect("Can't get datetime of Balance.");
         let creation_date = &datetime_of_statemant.format("%d.%m.%Y").to_string();
         let creation_datetime = &datetime_of_statemant
             .format("%d.%m.%Y в %H:%M:%S")
@@ -518,7 +497,6 @@ pub fn render_content_as_csv_extra_fin(
 ,,,,Дебет,,,,Кредит,,,,,,,,,,,,,,\n"
 ));
 
-        // iner_result_content.push_str("\n>>> START TRANSACTIONS <<<\n");
         let mut wtr = csv::Writer::from_writer(Vec::new());
         for statement in &input_vec {
             for tr in &statement.transactions {
@@ -544,17 +522,14 @@ pub fn render_content_as_csv_extra_fin(
                 let _ = wtr.write_record(&record);
             }
         }
-        wtr.flush().unwrap();
-        let csv_bytes = wtr.into_inner().unwrap();
-        let csv_string = String::from_utf8(csv_bytes).unwrap();
+        wtr.flush().expect("Can't flush CSV data to output buff.");
+        let csv_bytes = wtr.into_inner().expect("Can't convert buff with CSV content  to raw bytes.");
+        let csv_string = String::from_utf8(csv_bytes).expect("Can't convert raw bytes to String.");
         iner_result_content.push_str(&csv_string);
-        // iner_result_content.push_str(">>> END TRANSACTIONS <<<\n");
-        let opening_balance = &cash_statement_data.opening_balance.clone().unwrap();
+        let opening_balance = &cash_statement_data.opening_balance.clone().expect("Can't get info of Balance.");
         let open_balance_amount = opening_balance.amount.to_string().replace(".", ",");
-        // let open_balance_data = opening_balance.date.format("%y%m%d").to_string();
-        let closing_balance = &cash_statement_data.closing_balance.clone().unwrap();
+        let closing_balance = &cash_statement_data.closing_balance.clone().expect("Can't get info of Balance.");
         let closing_balance_amount = closing_balance.amount.to_string().replace(".", ",");
-        // let closing_balance_currency = &closing_balance.currency;
 
         let open_balance_data_format = format_russian_naive_date(opening_balance.date);
         let closing_balance_format = format_russian_naive_date(closing_balance.date);
@@ -570,7 +545,5 @@ pub fn render_content_as_csv_extra_fin(
 ,,,,,,,,,,,,,,,,,,,,,,\n"
         ));
     }
-    // let opening_balance = &cash_statement_data.opening_balance.clone().unwrap();
-
     Ok(iner_result_content.as_bytes().to_vec())
 }

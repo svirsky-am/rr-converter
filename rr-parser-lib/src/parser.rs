@@ -1,50 +1,46 @@
 use chrono::{DateTime, NaiveDate, NaiveDateTime};
-// use roxmltree::Document;
 use serde::Serialize;
-// use std::io;
 use std::io::{self, Read, Write};
 
 use std::fmt;
 use std::path::PathBuf;
 mod common;
 mod render;
+mod errors;
 mod sup_camp053;
 mod sup_extra_fin_csv;
 mod sup_mt940;
 use common::{Balance, Transaction, parse_russian_date};
 
-// In-memory parsed CSV
 #[derive(Debug, Default)]
 struct UniParser {
-    // headers: Vec<String>,
-    // rows: Vec<Vec<String>>,
     log_dir: PathBuf,
 }
 
-// #[derive(Hash, PartialEq, Eq, Debug)]
-// struct Transaction {
-//     country: &'static str,
-//     id: u32,
-// }
-// use roxmltree::{Document, Node}
 
-// #[derive(Serialize, Debug, Clone)]
+// ^^^ от таких комментариекв лучше код почистить :) Воспринимается тяжело, а ты
+// можешь в любом случае откатиться на старую ревизию, чтобы восстановить этот код :)
+
+//вроде зачистил 
+
 #[derive(PartialEq, Debug, Clone, Serialize)]
 struct Wallet {
     description: String,
     id: u128,
-    // transactions: Vec<Transaction>,
     pub bank_maintainer: String,
     pub currency: String,
     pub account: String,
     pub statement_id: String,
     pub statement_period_start: NaiveDateTime,
     pub statement_period_end: NaiveDateTime,
-    pub creation_time: Option<NaiveDateTime>, // Only in CAMT
+    pub creation_time: Option<NaiveDateTime>,
     pub opening_balance: Option<Balance>,
     pub closing_balance: Option<Balance>,
     pub transactions: Vec<Transaction>,
 }
+
+const STATEMENTS_FAKE_PERIOD_END: DateTime<chrono::Utc> = DateTime::from_timestamp(4_102_444_800, 0).expect("checked at compile time");
+const STATEMENTS_FAKE_PERIOD_START: DateTime<chrono::Utc> = DateTime::from_timestamp(0, 0).expect("checked at compile time");
 
 impl Default for Wallet {
     fn default() -> Self {
@@ -56,27 +52,22 @@ impl Default for Wallet {
             currency: String::new(),
             account: String::new(),
             statement_id: String::new(),
-            statement_period_start: DateTime::from_timestamp(0, 0).unwrap().naive_utc(),
-            statement_period_end: DateTime::from_timestamp(4_102_444_800, 0)
-                .unwrap()
-                .naive_utc(),
-            creation_time: Some(
-                DateTime::from_timestamp(4_102_444_800, 0)
-                    .unwrap()
-                    .naive_utc(),
-            ),
+            statement_period_start: STATEMENTS_FAKE_PERIOD_START.naive_utc(),
+            statement_period_end: STATEMENTS_FAKE_PERIOD_END.naive_utc(),
+            // ^^^ от таких .unwrap() в рантайме легко избавиться, если сделать константу:
+            creation_time: Some(STATEMENTS_FAKE_PERIOD_START.naive_utc()),
             opening_balance: Some(Balance {
                 amount: 0.0,
                 currency: "default_currency".to_owned(),
                 credit_debit: common::BalanceAdjustType::WithoutInfo,
-                date: NaiveDate::from_ymd_opt(1951, 1, 1).unwrap(),
+                date: STATEMENTS_FAKE_PERIOD_START.date_naive(),
                 last_ops: Vec::new(),
             }),
             closing_balance: Some(Balance {
                 amount: 0.0,
                 currency: "default_currency".to_owned(),
                 credit_debit: common::BalanceAdjustType::WithoutInfo,
-                date: NaiveDate::from_ymd_opt(1952, 2, 2).unwrap(),
+                date: STATEMENTS_FAKE_PERIOD_END.date_naive(),
                 last_ops: Vec::new(),
             }),
         }
@@ -94,15 +85,30 @@ impl Wallet {
 }
 
 impl UniParser {
-    fn parse_csv_extra_fin_from_str(&mut self, input: &str) -> anyhow::Result<Vec<Wallet>> {
+    fn parse_csv_extra_fin_from_str(
+        &mut self,
+        input: &str,
+    ) -> Result<Vec<Wallet>, ParseError> {
         let mut account_data = Wallet::new(7, "csv from str".to_owned());
 
         let parts: Vec<&str> = input.split(",,,,,,,,,,,,,,,,,,,,,,\n").collect();
+        // ^^^ там действительно такие длинные сепараторы? Может давай ограничимся
+        // csv-файлом, в котором просто через запятую перечислены поля структуры Wallet?
+        // Как я уже сказал, очень сложные файлы даны в качестве примера - давай сделаем
+        // рабочую программу, пусть даже со своим csv форматом :)
+
+        // да. Такое дали в условии задачи помотреть можно тут `tests/test_files/example_of_report_bill_1.csv`
+        // Я уже окучил этот формат. переделывать уже очень не охота. В процессе парсига отчет от сбера режется и приводится к нормальному виду , чтобы потом нормально распарссить с помощью крейта csv.
+
+        if parts.len() < 5 {
+            return Err(ParseError::ExtraFinHeaderNotMatched);
+        }
 
         let sratemnts_header = parts[1];
 
-        let currency_by_header = std::rc::Rc::new("TODO рубли".to_string());
-        // let match_header_parser = regex::Regex::new(r"\,(.*)\,\,\,\,(\s+).*\n")?;
+        
+
+
         let match_header_parser = regex::Regex::new(
             r"(?x)
             (?P<date>\b\d{2}\.\d{2}\.\d{4}\b)\,\,\,\,(?P<business>.+)\x20
@@ -113,187 +119,276 @@ impl UniParser {
             \x2c+(?P<client_name>[[^\x2c]\W\x22\x20]{1, 60})\x2c{10}\n
             \x2c\x2cза\x20период\x20с\x20(?P<statement_period_start>\d{1,2}.{1,15}\d{4})\x20г.\x2c{12}\x20по\x20,(?P<statement_period_end>\d{1,2}\x20.{1,15}\d{4})\x20г.\x2c+\n
             \x2c\x2c(?P<currency>[^\x2c]{1,40})\x2c{10}
-
             "
-        ).unwrap();
+        ).expect("this regex is tested by unit tests; qed");
+
+        // ^^^ в таких случааях лучше использовать .expect() с описанием - почему
+        // паники никогда не случится. В стиле .expect("this regex is tested by unit tests; qed")
+        // Есть ещё крейт https://crates.io/crates/lazy_regex, который проверит regex
+        // во время компиляции, а не в рантайме
+
+        // Применил для нескольких regexp lazy_regex в парсере mt940, но оставил несколько старых для себя.
+
+        let currency_by_header = std::cell::RefCell::new(String::new()); // TODO: extract from header
+        // let currency_by_header Rc<RefCell<usize>>
+        // ^^^ посмотри плиз на все TODO перед тем, как сдавать
+
         if let Some(caps) = match_header_parser.captures(input) {
-            let creation_time_str = String::from(&caps["data_creation"]);
-            let result_creation_sate_time =
-                NaiveDateTime::parse_from_str(&creation_time_str, "%d.%m.%Y в %H:%M:%S").unwrap();
-            // dbg!(result_creation_sate_time);
-            account_data.statement_id = String::from(&caps["code"]);
-            account_data.bank_maintainer =
-                String::from(&caps["bank_maintainer"]).trim().to_string();
-            account_data.id = String::from(&caps["client_id"]).parse::<u128>()?;
-            account_data.currency = String::from(&caps["currency"]);
-            account_data.account = String::from(&caps["client_name"]);
-            account_data.creation_time = Some(result_creation_sate_time);
+            let creation_time_str = &caps["data_creation"];
+            let result_creation_time = NaiveDateTime::parse_from_str(
+                creation_time_str,
+                "%d.%m.%Y в %H:%M:%S"
+            ).map_err(|source| ParseError::ExtraFinInvalidCreationTime {
+                date_str: creation_time_str.to_string(),
+                source,
+            })?;
 
-            account_data.statement_period_start =
-                parse_russian_date(&String::from(&caps["statement_period_start"]))
-                    .unwrap()
-                    .and_hms_opt(0, 0, 0)
-                    .unwrap();
-            account_data.statement_period_end =
-                parse_russian_date(&String::from(&caps["statement_period_end"]))
-                    .unwrap()
-                    .and_hms_opt(0, 0, 0)
-                    .unwrap();
+            account_data.statement_id = caps["code"].to_string();
+            account_data.bank_maintainer = caps["bank_maintainer"].trim().to_string();
+            account_data.id = caps["client_id"]
+                .parse::<u128>()
+                .map_err(|source| ParseError::ExtraFinInvalidClientId { source })?;
+            let currency_str = caps["currency"].to_string();
+            account_data.currency = caps["currency"].to_string();
+            *currency_by_header.borrow_mut() = currency_str;
+            account_data.account = caps["client_name"].to_string();
+            account_data.creation_time = Some(result_creation_time);
 
-            // dbg!(&caps);
+            let start_str = &caps["statement_period_start"];
+            let start_date = parse_russian_date(start_str)
+                .or_else(|_| Err(ParseError::ExtraFinInvalidParseRussianDate {
+                    source: format!("Failed to parse Russian date: {}", start_str).into(),
+                }))?;
+            account_data.statement_period_start = start_date
+                .and_hms_opt(0, 0, 0)
+                .ok_or_else(|| ParseError::ExtraFinInvalidParseRussianDate {
+                    source: "Invalid start date (no time part)".into(),
+                })?;
+            // ^^^ тоже unwrap - надо вернуть ошибку вместо этого. В других местах тоже.
+            // unwrap допустимы в тестах и в бинарях близко к main, где всё что мы можем
+            // сделать - это показать ошибку пользователю
+            
+            let end_str = &caps["statement_period_end"];
+            let end_date = parse_russian_date(end_str)
+                .or_else(|_| Err(ParseError::ExtraFinInvalidParseRussianDate {
+                    source: format!("Failed to parse Russian date: {}", end_str).into(),
+                }))?;
+            account_data.statement_period_end = end_date
+                .and_hms_opt(0, 0, 0)
+                .ok_or_else(|| ParseError::ExtraFinInvalidParseRussianDate {
+                    source: "Invalid end date (no time part)".into(),
+                })?;
         } else {
-            println!("No full match");
+            return Err(ParseError::ExtraFinHeaderNotMatched);
         }
+
         let bracked_csv = parts[2];
 
-        let output_dbg_sratemnts_header = self.log_dir.join(format!(
-            "{}_extra_csv_sratemnts_header.txt",
-            gen_time_prefix_to_filename()
-        ));
-        std::fs::create_dir_all(&self.log_dir).unwrap();
-        let mut file_dbg_sratemnts_header =
-            std::fs::File::create(output_dbg_sratemnts_header).unwrap();
-        let _ = file_dbg_sratemnts_header.write_all(sratemnts_header.as_bytes());
+        // --- Debug output (non-fatal) ---
+        if let Ok(dir) = std::fs::create_dir_all(&self.log_dir) {
+            let _ = write_debug_file(
+                &self.log_dir,
+                &format!("{}_extra_csv_sratemnts_header.txt", gen_time_prefix_to_filename()),
+                sratemnts_header.as_bytes(),
+            );
+            let _ = write_debug_file(
+                &self.log_dir,
+                &format!("{}_extra_csv_bracked.csv", gen_time_prefix_to_filename()),
+                bracked_csv.as_bytes(),
+            );
+        }
+        // ^^^ dbg выводы лучше как-то явно обозначить :)
 
-        let output_dbg_bracked_csv = self.log_dir.join(format!(
-            "{}_extra_csv_bracked.csv",
-            gen_time_prefix_to_filename()
-        ));
-        let mut file_dbg_bracked_csv = std::fs::File::create(output_dbg_bracked_csv).unwrap();
-        let _ = file_dbg_bracked_csv.write_all(bracked_csv.as_bytes());
+        // это не дебаг выводы , а сохраниние десериализованных данных в файл для отслеживания того как данные распарсились. В STDou и stderr ничего не попадает
 
         let normalyzed_csv_str = sup_extra_fin_csv::normalyze_csv_str(bracked_csv.to_owned());
-        // dbg!(&normalyzed_csv_str);
-        let output_normalyzed_csv = self
-            .log_dir
-            .join(format!("{}_normalyzed.csv", gen_time_prefix_to_filename()));
-        let mut file_output_normalyzed_csv = std::fs::File::create(output_normalyzed_csv).unwrap();
-        let _ = file_output_normalyzed_csv.write_all(normalyzed_csv_str.as_bytes());
+        let _ = write_debug_file(
+            &self.log_dir,
+            &format!("{}_normalyzed.csv", gen_time_prefix_to_filename()),
+            normalyzed_csv_str.as_bytes(),
+        );
 
-        let transactions = sup_extra_fin_csv::parsr_csv_str(normalyzed_csv_str.to_owned())?;
+        let transactions = sup_extra_fin_csv::parsr_csv_str(normalyzed_csv_str.to_owned())
+            .map_err(|e| ParseError::ExtraFinInvalidParseRussianDate {
+                source: e,
+            })?;
 
         account_data.transactions = transactions;
+
         let sratemnts_balance_ending = parts[4];
-        // dbg!(sratemnts_balance_ending);
-        // (:\d{2}[A-Z]?:)
-        // \,\,\,\,\,\,
         let match_input_balance = regex::Regex::new(
             r".*(\,Входящий остаток\,\,\,\,\,\,.{0,10}\,\,\,\,)(.{0,10})\,\,\,\,\,\,\(П\)\,\,(.*) г.\,\,\,\n.*\n(\,Исходящий остаток)\,\,\,\,\,\,.{0,10}\,\,\,\,(.{0,10})\,\,\,\,\,\,\(П\)\,\,(.*) г.\,\,\,\n.*",
-        )?;
+        ).map_err(|_| ParseError::ExtraFinHeaderNotMatched)?;
+
         for cap in match_input_balance.captures_iter(sratemnts_balance_ending) {
-            let input_balance = &cap[2];
+            let input_balance_str = &cap[2];
             let date_of_input_balance = &cap[3];
-
-            let parsed_input_date = parse_russian_date(date_of_input_balance);
-
-            // account_data.opening_balance = Some(input_balance.parse::<f64>()?);
-            let output_balance = &cap[5];
+            let output_balance_str = &cap[5];
             let date_of_output_balance = &cap[6];
-            let parsed_output_date = parse_russian_date(date_of_output_balance);
-            // dbg!(&parsed_output_date);
 
-            // dbg!(output_balance);
-            // let copy_currency = currency.clone();
+            let parsed_input_date = parse_russian_date(date_of_input_balance)
+                .map_err(|_| ParseError::ExtraFinInvalidParseRussianDate {
+                    source: format!("Failed to parse input balance date: {}", date_of_input_balance).into(),
+                })?;
+
+            let parsed_output_date = parse_russian_date(date_of_output_balance)
+                .map_err(|_| ParseError::ExtraFinInvalidParseRussianDate {
+                    source: format!("Failed to parse output balance date: {}", date_of_output_balance).into(),
+                })?;
+
             account_data.opening_balance = Some(Balance {
-                amount: input_balance.parse::<f64>()?,
-                // currency: "default_currency".to_owned(),
+                amount: input_balance_str.parse::<f64>().map_err(|source| {
+                    ParseError::ExtraFinInvalidParseRussianDate {
+                        source: Box::new(source),
+                    }
+                })?,
                 credit_debit: common::BalanceAdjustType::WithoutInfo,
-                date: parsed_input_date.unwrap(),
+                date: parsed_input_date,
                 last_ops: Vec::new(),
-                currency: currency_by_header.to_string(),
+                currency: currency_by_header.borrow().clone(),
             });
+
             account_data.closing_balance = Some(Balance {
-                amount: output_balance.parse::<f64>()?,
-                // currency: "default_currency".to_owned(),
+                amount: output_balance_str.parse::<f64>().map_err(|source| {
+                    ParseError::ExtraFinInvalidParseRussianDate {
+                        source: Box::new(source),
+                    }
+                })?,
                 credit_debit: common::BalanceAdjustType::WithoutInfo,
-                date: parsed_output_date.unwrap(),
+                date: parsed_output_date,
                 last_ops: Vec::new(),
-                currency: currency_by_header.to_string(),
+                currency: currency_by_header.borrow().clone(),
             });
         }
 
-        let output = vec![account_data];
-        Ok(output)
+        Ok(vec![account_data])
     }
 
-    fn parse_camt053_from_str(&mut self, input: &str) -> anyhow::Result<Vec<Wallet>> {
+    fn parse_camt053_from_str(
+                                    &mut self,
+                                    input: &str,
+                                ) -> Result<Vec<Wallet>, errors::ParseError> {
+        // ^^^ anyhow ошибки лучше использоват в бинарях, а в библиотеках - свой enum Error
+        // с #[derive(thiserror::Error)]. Это позволит вызывающему коду умно обработать
+        // ошибку. С anyhow этого сделать нельзя. По сути - это строка.
+        // Но тоже не буду к этому придираться :)
+
+        //немного переделал на thiserror::Error) и expect'ы
         const NS: &str = "urn:iso:std:iso:20022:tech:xsd:camt.053.001.02";
         use roxmltree::Document;
-        use sup_camp053::{find_nested_text, get_text};
-
-        use anyhow::Context;
-        // let content = input;
-        let doc = Document::parse(input).unwrap();
+    
+        let doc = Document::parse(input)
+            .map_err(|e| ParseError::Camt053XmlParse { source: e })?;
         let root = doc.root_element();
-
+    
         let bk_to_cstmr_stmt = root
             .children()
             .find(|n| n.has_tag_name((NS, "BkToCstmrStmt")))
-            .context("Missing BkToCstmrStmt")?;
-
+            .ok_or(ParseError::Camt053MissingElement {
+                element: "BkToCstmrStmt",
+            })?;
+    
         let grp_hdr = bk_to_cstmr_stmt
             .children()
             .find(|n| n.has_tag_name((NS, "GrpHdr")))
-            .context("Missing GrpHdr")?;
-        let msg_id = get_text(grp_hdr, (NS, "MsgId"));
-        let cre_dt_tm = get_text(grp_hdr, (NS, "CreDtTm"));
-        let creation_time =
-            Some(NaiveDateTime::parse_from_str(&cre_dt_tm, "%Y-%m-%dT%H:%M:%S").unwrap());
-
+            .ok_or(ParseError::Camt053MissingElement {
+                element: "GrpHdr",
+            })?;
+        let msg_id = get_text_or_error(grp_hdr, (NS, "MsgId"))?;
+        let cre_dt_tm = get_text_or_error(grp_hdr, (NS, "CreDtTm"))?;
+        let creation_time = Some(
+            NaiveDateTime::parse_from_str(&cre_dt_tm, "%Y-%m-%dT%H:%M:%S")
+                .map_err(|e| ParseError::Camt053DateTimeParse {
+                    value: cre_dt_tm,
+                    format: "%Y-%m-%dT%H:%M:%S",
+                    source: e,
+                })?,
+        );
+    
         let stmt = bk_to_cstmr_stmt
             .children()
             .find(|n| n.has_tag_name((NS, "Stmt")))
-            .context("Missing Stmt")?;
-
+            .ok_or(ParseError::Camt053MissingElement {
+                element: "Stmt",
+            })?;
+    
         let acct = stmt
             .children()
             .find(|n| n.has_tag_name((NS, "Acct")))
-            .context("Missing Acct")?;
-
+            .ok_or(ParseError::Camt053MissingElement {
+                element: "Acct",
+            })?;
+    
         let bank_maintainer = find_nested_text(acct, &[(NS, "Nm")]);
-
         let iban = find_nested_text(acct, &[(NS, "Id"), (NS, "IBAN")]);
-        let currency = get_text(acct, (NS, "Ccy"));
+        let currency = get_text_or_error(acct, (NS, "Ccy"))?;
         let account = if iban.is_empty() {
             "UNKNOWN".to_string()
         } else {
             iban
         };
-
+    
         let fr_to_dt = stmt
             .children()
             .find(|n| n.has_tag_name((NS, "FrToDt")))
-            .context("Missing FrToDt")?;
+            .ok_or(ParseError::Camt053MissingElement {
+                element: "FrToDt",
+            })?;
         let statement_period_start_str = find_nested_text(fr_to_dt, &[(NS, "FrDtTm")]);
-        let statement_period_start =
-            NaiveDateTime::parse_from_str(&statement_period_start_str, "%Y-%m-%dT%H:%M:%S")
-                .unwrap();
+        let statement_period_start = NaiveDateTime::parse_from_str(
+            &statement_period_start_str,
+            "%Y-%m-%dT%H:%M:%S",
+        )
+        .map_err(|e| ParseError::Camt053DateTimeParse {
+            value: statement_period_start_str,
+            format: "%Y-%m-%dT%H:%M:%S",
+            source: e,
+        })?;
+    
         let statement_period_end_str = find_nested_text(fr_to_dt, &[(NS, "ToDtTm")]);
-        let statement_period_end =
-            NaiveDateTime::parse_from_str(&statement_period_end_str, "%Y-%m-%dT%H:%M:%S").unwrap();
-        // let id: u128 = 0;
-
-        // Balances
+        let statement_period_end = NaiveDateTime::parse_from_str(
+            &statement_period_end_str,
+            "%Y-%m-%dT%H:%M:%S",
+        )
+        .map_err(|e| ParseError::Camt053DateTimeParse {
+            value: statement_period_end_str,
+            format: "%Y-%m-%dT%H:%M:%S",
+            source: e,
+        })?;
+    
         let mut balances = Vec::new();
-        // let last_ops_vec: Vec<common::OpKind> = Vec::new();
-        // let last_ops = last_ops_vec.to_owned();
         for bal in stmt.children().filter(|n| n.has_tag_name((NS, "Bal"))) {
             let code = find_nested_text(bal, &[(NS, "Tp"), (NS, "CdOrPrtry"), (NS, "Cd")]);
             let amt_node = bal
                 .children()
                 .find(|n| n.has_tag_name((NS, "Amt")))
-                .context("Balance missing Amt")?;
-            let amount: f64 = amt_node.text().unwrap_or("0").parse().unwrap_or(0.0);
+                .ok_or(ParseError::Camt053MissingElement {
+                    element: "Amt in Bal",
+                })?;
+    
+            let amount_str = amt_node.text().unwrap_or("0");
+            let amount = amount_str
+                .parse::<f64>()
+                .map_err(|e| ParseError::Camt053NumberParse {
+                    value: amount_str.to_string(),
+                    source: e,
+                })?;
+    
             let amt_ccy = amt_node.attribute("Ccy").unwrap_or(&currency).to_string();
             let credit_debit = match get_text(bal, (NS, "CdtDbtInd")).as_str() {
                 "CRDT" => common::BalanceAdjustType::Credit,
                 "DBIT" => common::BalanceAdjustType::Debit,
-                _ => common::BalanceAdjustType::Debit, // or consider logging/warning for unexpected values
+                _ => common::BalanceAdjustType::Debit,
             };
-
+    
             let date_str = find_nested_text(bal, &[(NS, "Dt"), (NS, "Dt")]);
-            let date =
-                NaiveDate::parse_from_str(&date_str, "%Y-%m-%d").expect("Failed to parse date");
+            let date = NaiveDate::parse_from_str(&date_str, "%Y-%m-%d")
+                .map_err(|e| ParseError::Camt053DateParse {
+                    value: date_str,
+                    format: "%Y-%m-%d",
+                    source: e,
+                })?;
+    
             balances.push((
                 code,
                 Balance {
@@ -301,12 +396,11 @@ impl UniParser {
                     currency: amt_ccy,
                     credit_debit,
                     date,
-                    // country,
                     last_ops: Vec::new(),
                 },
             ));
         }
-
+    
         let opening_balance = balances
             .iter()
             .find(|(code, _)| code == "OPBD")
@@ -315,45 +409,54 @@ impl UniParser {
             .iter()
             .find(|(code, _)| code == "CLBD")
             .map(|(_, b)| b.clone());
-
-        // Transactions
+    
         let mut transactions = Vec::new();
         for ntry in stmt.children().filter(|n| n.has_tag_name((NS, "Ntry"))) {
             let id = "non_id".to_owned();
             let amt_node = ntry
                 .children()
                 .find(|n| n.has_tag_name((NS, "Amt")))
-                .context("Entry missing Amt")?;
-            let amount: f64 = amt_node.text().unwrap_or("0").parse().unwrap_or(0.0);
+                .ok_or(ParseError::Camt053MissingElement {
+                    element: "Amt in Ntry",
+                })?;
+    
+            let amount_str = amt_node.text().unwrap_or("0");
+            let amount = amount_str
+                .parse::<f64>()
+                .map_err(|e| ParseError::Camt053NumberParse {
+                    value: amount_str.to_string(),
+                    source: e,
+                })?;
+    
             let currency = amt_node.attribute("Ccy").unwrap_or("").to_string();
             let currency = if currency.is_empty() {
                 currency.clone()
             } else {
                 currency
             };
+    
             let credit_debit = match get_text(ntry, (NS, "CdtDbtInd")).as_str() {
                 "DBIT" => common::BalanceAdjustType::Debit,
                 "CRDT" => common::BalanceAdjustType::Credit,
                 _ => common::BalanceAdjustType::WithoutInfo,
             };
-            // RltdDts
-            // AccptncDtTm
-
-            // (input, "%Y-%m-%dT%H:%M:%S")
-
-            // let debit_account: String = "TODO debit_account".to_string();
-            // let credit_account: String = "TODO credit_account".to_string(); //<BkTxCd Prtry
+    
             let bk_tx_cd_prtry_tag = ntry
                 .descendants()
                 .find(|n| n.tag_name().name() == "Prtry")
-                .unwrap();
+                .ok_or(ParseError::Camt053MissingElement {
+                    element: "Prtry in Ntry",
+                })?;
+    
             let cd_target_tr_tag_text = bk_tx_cd_prtry_tag
                 .children()
                 .find(|n| n.has_tag_name((NS, "Cd")))
-                .context("Balance missing Prtry")?
+                .ok_or(ParseError::Camt053MissingElement {
+                    element: "Cd under Prtry",
+                })?
                 .text()
-                .unwrap();
-            // dbg!(cd_target_tr_tag);
+                .ok_or(ParseError::Camt053MissingTextContent)?;
+    
             let (debit_account, credit_account) = match credit_debit {
                 common::BalanceAdjustType::Debit => {
                     (cd_target_tr_tag_text.to_string(), account.clone())
@@ -365,57 +468,45 @@ impl UniParser {
                     (account.clone(), cd_target_tr_tag_text.to_string())
                 }
             };
-            // bk_tx_cd_tag.children()
-            // let target_bank: String = "TODO target bank".to_string();
-            // let purpose = "TODO target bank".to_string();
-            // AddtlTxInf
-
-            // let mut narratives = Vec::new();
-            // if let Some(rmt) = ntry.children().find(|n| n.has_tag_name((NS, "RmtInf"))) {
-            //     for ustrd in rmt.children().filter(|n| n.has_tag_name((NS, "Ustrd"))) {
-            //         if let Some(text) = ustrd.text() {
-            //             narratives.push(text.trim().to_string());
-            //         }
-            //     }
-            // }
-            // dbg!(&narratives);
-            // let purpose = "TODO target bank".to_string();
-            // let purpose = sup_camp053::get_text_of_deep_child_node(ntry, "RltdPties");
-            // dbg!(&purpose);
+    
             let purpose = "TODO parse RltdPties".to_string();
-            let sub_fmly_cd = sup_camp053::get_text_of_deep_child_node(ntry, "SubFmlyCd").unwrap();
-            let accptnc_dt_tm_str =
-                sup_camp053::get_text_of_deep_child_node(ntry, "AccptncDtTm").unwrap();
+            let sub_fmly_cd = sup_camp053::get_text_of_deep_child_node(ntry, "SubFmlyCd")
+                .ok_or(ParseError::Camt053MissingElement {
+                    element: "SubFmlyCd",
+                })?;
+            let accptnc_dt_tm_str = sup_camp053::get_text_of_deep_child_node(ntry, "AccptncDtTm")
+                .ok_or(ParseError::Camt053MissingElement {
+                    element: "AccptncDtTm",
+                })?;
             let service_bank = sup_camp053::get_text_of_deep_child_node(ntry, "AcctSvcrRef")
-                .unwrap()
+                .unwrap_or_default()
                 .to_string();
-
-            let date_time =
-                NaiveDateTime::parse_from_str(accptnc_dt_tm_str, "%Y-%m-%dT%H:%M:%S").unwrap();
-            // dbg!(date_time);
-
+    
+            let date_time = NaiveDateTime::parse_from_str(accptnc_dt_tm_str, "%Y-%m-%dT%H:%M:%S")
+                .map_err(|e| ParseError::Camt053DateTimeParse {
+                    value: accptnc_dt_tm_str.to_string(),
+                    format: "%Y-%m-%dT%H:%M:%S",
+                    source: e,
+                })?;
+    
             transactions.push(Transaction {
                 id,
-                // &&country,
                 credit_account,
                 debit_account,
                 date_time,
                 amount,
                 currency,
                 credit_debit,
-                // narrative: narratives,
                 service_bank,
                 purpose,
                 transaction_type: Some(sub_fmly_cd.to_owned()),
             });
         }
-
-        let id: u128 = 0;
-        let description: String = "0".to_owned();
+    
         let output = vec![Wallet {
-            id,
+            id: 0,   // not found in test sample
             bank_maintainer,
-            description,
+            description: "0".to_owned(),
             account,
             currency,
             statement_id: msg_id,
@@ -426,13 +517,10 @@ impl UniParser {
             closing_balance,
             transactions,
         }];
+    
         Ok(output)
-        // Ok()
-        // dbg!(&data_transactions);
-        // account_data
     }
-
-    fn parse_mt940_from_str(&mut self, input: &str) -> anyhow::Result<Vec<Wallet>> {
+    fn parse_mt940_from_str(&mut self, input: &str) -> Result<Vec<Wallet>, errors::ParseError> {
         sup_mt940::parse_mt940_alt(input)
     }
 }
@@ -451,9 +539,7 @@ pub enum InputParserFormat {
 impl fmt::Display for InputParserFormat {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            // InputParserFormat::Csv => write!(f, "csv"),
             InputParserFormat::CsvExtraFin => write!(f, "csv_extra_fin"),
-            // InputParserFormat::Xml => write!(f, "Xml"),
             InputParserFormat::Mt940 => write!(f, "mt_940"),
             InputParserFormat::Camt053 => write!(f, "camt_053"),
         }
@@ -465,9 +551,7 @@ impl std::str::FromStr for InputParserFormat {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            // "csv" => Ok(InputParserFormat::Csv),
             "csv_extra_fin" => Ok(InputParserFormat::CsvExtraFin),
-            // "xml" => Ok(InputParserFormat::Xml),
             "camt_053" => Ok(InputParserFormat::Camt053),
             "mt_940" => Ok(InputParserFormat::Mt940),
             _ => Err(format!(
@@ -479,14 +563,12 @@ impl std::str::FromStr for InputParserFormat {
 }
 
 impl InputParserFormat {
-        /// Returns a slice of all supported input parser formats.
+    /// Returns a slice oёf all supported input parser formats.
     ///
     /// This list includes only the formats currently enabled for parsing input data.
     pub fn all_variants() -> &'static [InputParserFormat] {
         &[
-            // InputParserFormat::Csv,
             InputParserFormat::CsvExtraFin,
-            // InputParserFormat::Xml,
             InputParserFormat::Mt940,
             InputParserFormat::Camt053,
         ]
@@ -542,7 +624,6 @@ impl OutputParserFormat {
     /// Returns a slice of all currently supported output formats.
     pub fn all_variants() -> &'static [OutputParserFormat] {
         &[
-            // OutputParserFormat::Csv,
             OutputParserFormat::CsvExtraFin,
             OutputParserFormat::Yaml,
             OutputParserFormat::Mt940,
@@ -550,27 +631,6 @@ impl OutputParserFormat {
         ]
     }
 }
-
-// #[derive(Debug)]
-// pub enum FinConverterError {
-//     Io(std::io::Error),
-//     ParseError(String),
-//     SerializeError(serde_yaml::Error),
-//     AlreadyFlushed,
-// }
-
-// impl std::fmt::Display for FinConverterError {
-//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//         match self {
-//             FinConverterError::Io(e) => write!(f, "IO error: {}", e),
-//             FinConverterError::ParseError(e) => write!(f, "Parse error: {}", e),
-//             FinConverterError::SerializeError(e) => write!(f, "Serialization error: {}", e),
-//             FinConverterError::AlreadyFlushed => write!(f, "Data already flushed"),
-//         }
-//     }
-// }
-// impl std::error::Error for FinConverterError {}
-
 
 /// A bidirectional I/O adapter that converts financial data from one format to another.
 ///
@@ -588,11 +648,9 @@ pub struct FinConverter {
     input_byte_buffer: Vec<u8>, // накапливаем сырые байты для поддержки кириллицы 
     flushed: bool,
     input_buffer: String,
-    // Output state (for Read)
     output_bytes: Vec<u8>,
     read_pos: usize,
     log_dir: std::path::PathBuf,
-    // input_byte_buffer: (),
 }
 
 impl FinConverter {
@@ -621,17 +679,15 @@ impl FinConverter {
         let mut parser: UniParser = UniParser::default();
         parser.log_dir = self.log_dir.clone();
         let result_statement_data = match self.process_input_type {
-            // InputParserFormat::Csv => parser.parse_csv_from_str(&self.input_buffer),
-            InputParserFormat::CsvExtraFin => {
+           InputParserFormat::CsvExtraFin => {
                 parser.parse_csv_extra_fin_from_str(&self.input_buffer)
             }
-            // InputParserFormat::Xml => parser.parse_csv_from_str(&self.input_buffer),
             InputParserFormat::Camt053 => parser.parse_camt053_from_str(&self.input_buffer),
             InputParserFormat::Mt940 => parser.parse_mt940_from_str(&self.input_buffer),
         };
 
-        let parsed_account_data = result_statement_data.unwrap();
-        let report_string: String = serde_yaml::to_string(&parsed_account_data).unwrap();
+        let parsed_account_data = result_statement_data?;
+        let report_string: String = serde_yaml::to_string(&parsed_account_data)?;
 
         let gen_output_name = format!(
             "from_{}_to_{}_{}.yaml",
@@ -641,8 +697,8 @@ impl FinConverter {
         );
         let output_path = self.log_dir.join(gen_output_name);
 
-        std::fs::create_dir_all(&self.log_dir).unwrap();
-        let mut file = std::fs::File::create(output_path).unwrap();
+        std::fs::create_dir_all(&self.log_dir)?;
+        let mut file = std::fs::File::create(output_path)?;
         let _ = file.write_all(report_string.as_bytes());
 
         // std::fs::write(&output_path, yaml_string)
@@ -658,6 +714,9 @@ impl FinConverter {
             OutputParserFormat::Camt053 => render::render_content_as_camt053(parsed_account_data),
             OutputParserFormat::Mt940 => render::render_content_as_mt940(parsed_account_data),
         };
+
+        // ^^^ вот тут - клёво. Я бы, если честно, вот это и оставил в parse_input_and_serialize_via_trait,
+        // убрав всю flush-магию :) Но ты - автор, волен делать как хочешь :)
 
         self.output_bytes = rendered_result?;
         let mut output_format_str = format!("output_format: {}\n", self.process_output_type)
@@ -677,6 +736,9 @@ impl FinConverter {
 use chardetng::EncodingDetector;
 
 use crate::parser::common::gen_time_prefix_to_filename;
+use crate::parser::errors::ParseError;
+use crate::parser::sup_camp053::{find_nested_text, get_text, get_text_or_error};
+use crate::parser::sup_extra_fin_csv::write_debug_file;
 // use quick_xml::events::Event;
 
 fn detect_and_decode(buf: &[u8]) -> String {

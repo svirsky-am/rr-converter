@@ -1,9 +1,3 @@
-// use std::cell::RefCell;
-// use std::collections::HashMap;
-// use std::fs;
-
-// use std::path::Path;
-
 #[cfg(test)]
 mod tests {
 
@@ -90,18 +84,6 @@ mod tests {
             OutputParserFormat::Mt940,
         );
 
-        // let _result_3 = parse_input_and_serialize_via_trait(
-        //     File::open(Path::new(&TestConstants::take_sample_file(
-        //         "MT_940_aiophotoz.mt940".to_string(),
-        //     )))
-        //     .unwrap(),
-        //     File::create(Path::new(&TestConstants::get_output_dir_path(
-        //         "MT_940_aiophotoz.mt940.txt".to_string(),
-        //     )))
-        //     .unwrap(),
-        //     InputParserFormat::Mt940,
-        //     OutputParserFormat::Camt053,
-        // );
 
         let _result_4 = parse_input_and_serialize_via_trait(
             File::open(Path::new(&TestConstants::take_sample_file(
@@ -171,18 +153,7 @@ mod tests {
     fn test_parse_camt053_to_self() {
         let output_dir: &PathBuf = &TestConstants::get_output_path();
         std::fs::create_dir_all(&output_dir).unwrap();
-        // let _result_5 = parse_input_and_serialize_via_trait(
-        //     File::open(Path::new(&TestConstants::take_sample_file(
-        //         "Camt.053_example_file_FI-CPE.xml".to_string(),
-        //     )))
-        //     .unwrap(),
-        //     File::create(Path::new(&TestConstants::get_output_dir_path(
-        //         "Camt.053_example_file_FI-CPE_camt_to_mt.tx".to_string(),
-        //     )))
-        //     .unwrap(),
-        //     InputParserFormat::Camt053,
-        //     OutputParserFormat::Mt940,
-        // );
+
         let _result_7 = parse_input_and_serialize_via_trait(
             File::open(Path::new(&TestConstants::take_sample_file(
                 "camt_053_danske_bank.xml".to_string(),
