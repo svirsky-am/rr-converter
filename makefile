@@ -110,5 +110,5 @@ linting:
 	cargo check
 
 
-.PHONY: all
-all: run-test-of-libs run-test-of-bin build-and-exec-args-mode 
+.PHONY: all-task-module1
+all-task-module1: run-test-of-libs run-test-of-bin build-and-exec-args-mode 
