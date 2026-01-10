@@ -14,8 +14,15 @@ pub mod logging;
 #[cfg(not(feature = "logging"))]
 mod logging;
 
+
+
 // Реэкспортируем макросы логирования
+#[cfg(feature = "logging")]
 pub use logging::{debug, error, info, trace, warn, init_logger};
+
+#[cfg(not(feature = "logging"))]
+pub use logging::{init_logger};
+
 
 pub fn add(left: u64, right: u64) -> u64 {
     left + right

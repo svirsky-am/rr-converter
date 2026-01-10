@@ -1,6 +1,6 @@
 // src/sender.rs
 
-use crate::{RoomMetrics, debug, error, info, init_logger, trace, warn};
+use crate::{RoomMetrics, debug, info, init_logger, trace, warn};
 use bincode;
 use std::net::UdpSocket;
 use std::thread;
