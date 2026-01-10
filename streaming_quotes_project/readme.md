@@ -1,10 +1,10 @@
 
-Run monitor:
+Run quote_server:
 ```sh 
-	cargo run -p streaming_quotes_project --bin monitor --features 'sqlite random logging'
+	cargo run -p streaming_quotes_project --bin quote_server --features 'sqlite random logging'
 ```
 
-Run sender:
+Run quote_client:
 ```sh 
-	cargo run -p streaming_quotes_project --bin sensor_simulator --features 'sqlite random logging'
+	cargo run -p streaming_quotes_project --bin quote_client --features 'sqlite random logging'
 ```

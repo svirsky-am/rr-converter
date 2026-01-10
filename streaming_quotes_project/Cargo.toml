@@ -19,9 +19,9 @@ env_logger = { version = "0.10", optional = true }
 chrono = "0.4"
 
 [[bin]]
-name = "sensor_simulator"
-path = "bins/sensor_simulator/main.rs"
+name = "quote_client"
+path = "bins/quote_client/main.rs"
 
 [[bin]]
-name = "monitor"
-path = "bins/monitor/main.rs"
+name = "quote_server"
+path = "bins/quote_server/main.rs"

@@ -1,4 +1,4 @@
-use room_monitoring::{MetricsSender, RoomMetrics};
+use streaming_quotes_project::{MetricsSender, RoomMetrics};
 use std::env;
 use std::thread;
 use std::time::Duration;

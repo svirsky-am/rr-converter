@@ -1,6 +1,6 @@
 // examples/demo_features.rs
 
-use room_monitoring::RoomMetrics;
+use streaming_quotes_project::RoomMetrics;
 
 fn main() {
     println!("Демонстрация работы features");

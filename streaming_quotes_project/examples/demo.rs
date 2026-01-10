@@ -1,4 +1,4 @@
-use room_monitoring::{MetricsReceiver, MetricsSender, RoomMetrics};
+use streaming_quotes_project::{MetricsReceiver, MetricsSender, RoomMetrics};
 use std::sync::mpsc::RecvTimeoutError;
 use std::thread;
 use std::time::Duration;
