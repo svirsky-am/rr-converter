@@ -7,4 +7,8 @@ Run quote_server:
 Run quote_client:
 ```sh 
 	cargo run -p streaming_quotes_project --bin quote_client --features 'sqlite random logging'
+	cargo run -p streaming_quotes_project --bin quote_client --features 'sqlite random logging' -- "127.0.0.1:8080" "1000"
+	        #     "--",
+            # "127.0.0.1:8080",
+            # "1000"
 ```

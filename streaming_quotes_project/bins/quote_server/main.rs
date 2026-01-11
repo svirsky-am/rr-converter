@@ -3,7 +3,8 @@ use streaming_quotes_project::MetricsReceiver;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let bind_addr = "127.0.0.1:8080";
 
-    println!(" Запуск системы мониторинга банковского хранилища");
+    // println!(" Запуск системы мониторинга банковского хранилища");
+    println!(" Run server");
     println!("Прослушивание адреса: {}", bind_addr);
     println!("──────────────────────────────────────────────────");
 
