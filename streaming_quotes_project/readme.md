@@ -12,3 +12,11 @@ Run quote_client:
             # "127.0.0.1:8080",
             # "1000"
 ```
+
+## debug
+Show open ports
+```sh 
+netstat -tupl 
+sudo pkill quote_server
+
+```

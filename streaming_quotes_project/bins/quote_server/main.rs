@@ -19,33 +19,56 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Основной цикл обработки данных
     loop {
         match metrics_rx.recv() {
+            // Ok((metrics, _src_addr)) => {
+            //     total_received += 1;
+
+            //     // Определяем статус тревоги
+            //     let alert_status = if metrics.door_open {
+            //         "🚨 ТРЕВОГА: ДВЕРЬ ОТКРЫТА!"
+            //     } else if metrics.temperature > 30.0 {
+            //         "⚠️  ВНИМАНИЕ: Высокая температура"
+            //     } else if metrics.humidity > 70.0 {
+            //         "⚠️  ВНИМАНИЕ: Высокая влажность"
+            //     } else {
+            //         "✅ Норма"
+            //     };
+
+            //     println!(
+            //         "[#{:03}] {} | Темп: {:.1}°C | Влажн: {:.1}% | Давл: {:.1}hPa | Дверь: {} | Шум: {:.1} Дб | {}",
+            //         total_received,
+            //         metrics.formatted_time(),
+            //         metrics.temperature,
+            //         metrics.humidity,
+            //         metrics.pressure,
+            //         if metrics.door_open {
+            //             "ОТКРЫТА"
+            //         } else {
+            //             "закрыта"
+            //         },
+            //         metrics.noise_level,
+            //         alert_status
+            //     );
+            // }
+            
             Ok((metrics, _src_addr)) => {
                 total_received += 1;
 
                 // Определяем статус тревоги
-                let alert_status = if metrics.door_open {
-                    "🚨 ТРЕВОГА: ДВЕРЬ ОТКРЫТА!"
-                } else if metrics.temperature > 30.0 {
-                    "⚠️  ВНИМАНИЕ: Высокая температура"
-                } else if metrics.humidity > 70.0 {
-                    "⚠️  ВНИМАНИЕ: Высокая влажность"
-                } else {
-                    "✅ Норма"
-                };
+                let alert_status = "PING";
 
                 println!(
-                    "[#{:03}] {} | Темп: {:.1}°C | Влажн: {:.1}% | Давл: {:.1}hPa | Дверь: {} | Шум: {:.1} Дб | {}",
+                    "[#{:03}] | {}",
                     total_received,
-                    metrics.formatted_time(),
-                    metrics.temperature,
-                    metrics.humidity,
-                    metrics.pressure,
-                    if metrics.door_open {
-                        "ОТКРЫТА"
-                    } else {
-                        "закрыта"
-                    },
-                    metrics.noise_level,
+                    // metrics.formatted_time(),
+                    // metrics.temperature,
+                    // metrics.humidity,
+                    // metrics.pressure,
+                    // if metrics.door_open {
+                    //     "ОТКРЫТА"
+                    // } else {
+                    //     "закрыта"
+                    // },
+                    // metrics.noise_level,
                     alert_status
                 );
             }

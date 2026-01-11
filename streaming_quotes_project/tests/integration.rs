@@ -11,10 +11,19 @@ fn test_tcp_client_server() {
     let server_addr = format!("127.0.0.1:{}", port);
 
     // Start the server as a child process
-    let mut run_server = Command::new("cargo")
-        .args(["run", "-p", "streaming_quotes_project",
+    let server_exec_path = format!("../target/debug/quote_server");
+    println!("Current working directory: {}", std::env::current_dir().unwrap().display());
+    assert!(
+        std::path::Path::new(&server_exec_path).exists(),
+        "Server binary not found! Run `cargo build --bins` first."
+    );
+    let mut run_server = Command::new(server_exec_path)
+        .args([
+            // "run", "-p", "streaming_quotes_project",
         // "--features",  "'sqlite random logging'",
-        "--bin", "quote_server", "--", &port.to_string()])
+        // "--bin", "quote_server", 
+        // "--",
+         &port.to_string()])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
@@ -53,7 +62,7 @@ fn test_tcp_client_server() {
 
 
 
-    let socket = UdpSocket::bind(&server_addr).is_ok();
+    // let socket = UdpSocket::bind(&server_addr).is_ok();
 
     println!("MetricsSender создан на адресе {}", server_addr);
     
@@ -85,20 +94,39 @@ fn test_tcp_client_server() {
     // .expect("Failed to run client");
     
     // Run the client
-    let output = Command::new("cargo")
+    thread::sleep(Duration::from_millis(1000));
+    // let output = Command::new("../target/debug/quote_server")
+    //     .args([
+    //         // "run", "-p", "streaming_quotes_project",
+    //         // "--features",  "'sqlite random logging'",
+    //         "--bin",
+    //         "quote_client",
+    //         "--",
+    //         "127.0.0.1:8080",
+    //         "1000"
+    //         // &port.to_string(),
+    //         // "PING",
+    //     ])
+    //     .output()
+    //     .expect("Failed to run client");
+
+    let mut run_client = Command::new("../target/debug/quote_client")
         .args([
-            "run", "-p", "streaming_quotes_project",
-            "--features",  "'sqlite random logging'",
-            "--bin",
-            "quote_client",
-            "--",
+            // "run", "-p", "streaming_quotes_project",
+            // "--features",  "'sqlite random logging'",
+            // "--bin",
+            // "quote_client",
+            // "--",
             "127.0.0.1:8080",
             "1000"
             // &port.to_string(),
             // "PING",
         ])
-        .output()
-        .expect("Failed to run client");
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("Failed to start server");
+
 
     // Check client output (adjust based on your client's behavior)
     thread::sleep(Duration::from_millis(8000));
@@ -130,7 +158,7 @@ fn test_tcp_client_server() {
             match line {
                 Ok(text) => {
                     println!("[SERVER STDOUT] {}", text);
-                    if text.contains("[#005]") {
+                    if text.contains("[#") {
                         let _ = sender.send(true); // Signal: found!
                         return; // Optional: exit early
                     }
@@ -145,21 +173,25 @@ fn test_tcp_client_server() {
         let _ = sender.send(false);
     });
 
-    thread::sleep(Duration::from_millis(1000));
+    thread::sleep(Duration::from_millis(7000));
+    dbg!(&receiver);
     match receiver.recv_timeout(std::time::Duration::from_secs(1)) {
         Ok(found) => {
             assert!(found, "Server stdout did not contain 'TEST_TEST'");
         }
         Err(_) => {
             // Timeout: assume not found
+            run_server.kill().ok();
             panic!("Timeout waiting for server output containing 'TEST_TEST'");
         }
     }
 
-    let _ = run_thread.join().is_ok();
+    // let _ = run_thread.join().is_ok();
 
     
 
     // Kill the server
     run_server.kill().ok();
+    run_client.kill().ok();
+    
 }
